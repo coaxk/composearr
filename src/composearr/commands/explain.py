@@ -235,6 +235,46 @@ RULE_DOCS: dict[str, dict] = {
             "https://trash-guides.info/Hardlinks/Hardlinks-and-Instant-Moves/",
         ],
     },
+    "CA302": {
+        "why": (
+            "If a service declares depends_on another service but they are on "
+            "incompatible networks, the dependency starts but cannot be reached. "
+            "The service will fail to connect at runtime despite compose starting "
+            "the dependency first."
+        ),
+        "scenarios": [
+            "App depends on db, but app uses network_mode: host while db is on a custom network",
+            "Frontend depends on API, but they are on different bridge networks with no overlap",
+            "Service uses network_mode: none but depends_on a database",
+        ],
+        "fix_examples": [
+            ("Put both services on the same network", "services:\n  app:\n    depends_on: [db]\n    networks:\n      - backend\n  db:\n    networks:\n      - backend"),
+            ("Use network_mode: service: to share", "services:\n  sidecar:\n    network_mode: \"service:app\""),
+        ],
+        "related": ["CA301", "CA303"],
+        "learn_more": [
+            "https://docs.docker.com/compose/how-tos/networking/",
+        ],
+    },
+    "CA303": {
+        "why": (
+            "A service with network_mode: none has no network access at all. "
+            "If it also exposes ports, those ports are unreachable from outside "
+            "the container — a silent misconfiguration that wastes resources."
+        ),
+        "scenarios": [
+            "A batch processing container set to none still has ports from a template",
+            "Service was isolated for security but ports were left in the config",
+        ],
+        "fix_examples": [
+            ("Remove ports from isolated service", "services:\n  batch:\n    network_mode: none\n    # Remove: ports: [\"8080:8080\"]"),
+            ("Change network mode if ports are needed", "services:\n  app:\n    # network_mode: none  # Remove this\n    ports:\n      - \"8080:8080\""),
+        ],
+        "related": ["CA302"],
+        "learn_more": [
+            "https://docs.docker.com/compose/how-tos/networking/",
+        ],
+    },
 }
 
 

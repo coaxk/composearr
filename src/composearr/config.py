@@ -27,6 +27,8 @@ _RULE_NAME_TO_ID: dict[str, str] = {
     "missing-timezone": "CA403",
     "untrusted-registry": "CA003",
     "hardlink-path-mismatch": "CA601",
+    "unreachable-dependency": "CA302",
+    "isolated-service-ports": "CA303",
 }
 
 # Default rule severities
@@ -42,6 +44,8 @@ DEFAULT_RULES: dict[str, str] = {
     "CA402": "warning",
     "CA403": "warning",
     "CA601": "warning",
+    "CA302": "error",
+    "CA303": "warning",
 }
 
 

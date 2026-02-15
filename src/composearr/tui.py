@@ -256,6 +256,7 @@ def launch_tui() -> None:
                 Choice(value="audit", name="\u2699  Custom Audit (configure options)"),
                 Choice(value="fix", name="\U0001f527 Fix issues"),
                 Choice(value="ports", name="\U0001f4cb Port allocation table"),
+                Choice(value="topology", name="\U0001f310 Network topology"),
                 Choice(value="rules", name="\U0001f4d6 Rules & Explain"),
                 Choice(value="config", name="\u2699  Config"),
                 Choice(value=_EXIT, name="\u2716  Exit"),
@@ -274,6 +275,8 @@ def launch_tui() -> None:
             _tui_fix(console, session)
         elif action == "ports":
             _tui_ports(console, session)
+        elif action == "topology":
+            _tui_topology(console, session)
         elif action == "rules":
             _tui_rules_and_explain(console)
         elif action == "config":
@@ -748,6 +751,36 @@ def _tui_ports(console: Console, session: dict) -> None:
         all_ports, root, console,
         show_conflicts_only=(view_mode == "conflicts"),
     )
+
+
+# ── Network Topology ──────────────────────────────────────────
+
+
+def _tui_topology(console: Console, session: dict) -> None:
+    """Network topology visualization."""
+    from composearr.commands.topology import render_topology
+
+    path = _resolve_path(console, session)
+    if path is None:
+        return
+
+    root = Path(path).resolve()
+
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    with Progress(
+        SpinnerColumn(style=C_TEAL),
+        TextColumn(f"[{C_MUTED}]Analyzing network topology\u2026[/]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        # Pre-load to trigger the spinner
+        from composearr.scanner.discovery import discover_compose_files
+        from composearr.scanner.parser import parse_compose_file
+        paths, _ = discover_compose_files(root)
+        _ = [parse_compose_file(p) for p in paths]
+
+    render_topology(root, console)
 
 
 # ── Rules & Explain (combined — flatter) ──────────────────────

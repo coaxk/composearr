@@ -321,6 +321,36 @@ def ports(
 
 
 @app.command()
+def topology(
+    path: str = typer.Argument(None, help="Path to scan (auto-detects if omitted)"),
+    output_format: str = typer.Option("console", "--format", "-f", help="Output format: console, json"),
+) -> None:
+    """Show network topology and dependency reachability."""
+    from composearr.commands.topology import render_topology, format_topology_json
+
+    if path is None:
+        from composearr.scanner.discovery import detect_stack_directory
+        detected = detect_stack_directory()
+        if detected:
+            root = detected
+            console.print(f"  [{C_INFO}]\u2139[/]  [{C_TEXT}]Auto-detected stack directory:[/] [{C_TEAL}]{root}[/]")
+        else:
+            root = Path.cwd().resolve()
+    else:
+        root = Path(path).resolve()
+
+    if not root.is_dir():
+        console.print(f"[{C_ERR}]Error:[/] {path} is not a directory")
+        raise typer.Exit(code=2)
+
+    if output_format == "json":
+        content = format_topology_json(root)
+        typer.echo(content)
+    else:
+        render_topology(root, console)
+
+
+@app.command()
 def rules() -> None:
     """List all available rules."""
     all_rules = get_all_rules()
