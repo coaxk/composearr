@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from composearr.analyzers.entropy import calculate_shannon_entropy, is_likely_secret
+from composearr.analyzers.entropy import calculate_shannon_entropy, is_likely_secret, rate_secret_strength
 
 
 class TestShannonEntropy:
@@ -70,3 +70,31 @@ class TestIsLikelySecret:
         is_secret_loose, _ = is_likely_secret(value, threshold=0.5)
         # Loose threshold should still catch it
         assert is_secret_loose
+
+
+class TestRateSecretStrength:
+    def test_empty_value(self):
+        rating, entropy = rate_secret_strength("")
+        assert rating == "weak"
+        assert entropy == 0.0
+
+    def test_short_password(self):
+        rating, _ = rate_secret_strength("pass1234")
+        assert rating == "weak"
+
+    def test_medium_password(self):
+        rating, _ = rate_secret_strength("MyP@ssw0rd123456")
+        assert rating == "medium"
+
+    def test_strong_secret(self):
+        rating, _ = rate_secret_strength("xK9mN2pQ5rT8vW3yB6cF1hJ4lA7sD0g")
+        assert rating == "strong"
+
+    def test_low_entropy_long_string(self):
+        # Long but repetitive — should be weak
+        rating, _ = rate_secret_strength("aaaaaaaabbbbbbbb")
+        assert rating == "weak"
+
+    def test_returns_entropy(self):
+        _, entropy = rate_secret_strength("xK9mN2pQ5rT8vW3y")
+        assert 0.0 < entropy <= 1.0

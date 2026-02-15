@@ -66,6 +66,52 @@ class TestCA001:
         assert len(issues) == 1
 
 
+# ── CA003: Untrusted Registry ────────────────────────────────
+
+
+class TestCA003:
+    def test_trusted_docker_hub(self, tmp_path: Path):
+        cf = _make_cf(tmp_path, "services:\n  web:\n    image: nginx:1.25\n")
+        issues = _run_service_rule("CA003", "web", {"image": "nginx:1.25"}, cf)
+        assert len(issues) == 0
+
+    def test_trusted_docker_hub_org(self, tmp_path: Path):
+        cf = _make_cf(tmp_path, "services:\n  web:\n    image: linuxserver/sonarr:latest\n")
+        issues = _run_service_rule("CA003", "web", {"image": "linuxserver/sonarr:latest"}, cf)
+        assert len(issues) == 0
+
+    def test_trusted_ghcr(self, tmp_path: Path):
+        cf = _make_cf(tmp_path, "services:\n  app:\n    image: ghcr.io/linuxserver/sonarr:latest\n")
+        issues = _run_service_rule("CA003", "app", {"image": "ghcr.io/linuxserver/sonarr:latest"}, cf)
+        assert len(issues) == 0
+
+    def test_trusted_lscr(self, tmp_path: Path):
+        cf = _make_cf(tmp_path, "services:\n  app:\n    image: lscr.io/linuxserver/sonarr:latest\n")
+        issues = _run_service_rule("CA003", "app", {"image": "lscr.io/linuxserver/sonarr:latest"}, cf)
+        assert len(issues) == 0
+
+    def test_untrusted_registry(self, tmp_path: Path):
+        cf = _make_cf(tmp_path, "services:\n  app:\n    image: myregistry.example.com/myapp:1.0\n")
+        issues = _run_service_rule("CA003", "app", {"image": "myregistry.example.com/myapp:1.0"}, cf)
+        assert len(issues) == 1
+        assert "myregistry.example.com" in issues[0].message
+
+    def test_no_image(self, tmp_path: Path):
+        cf = _make_cf(tmp_path, "services:\n  web:\n    build: .\n")
+        issues = _run_service_rule("CA003", "web", {"build": "."}, cf)
+        assert len(issues) == 0
+
+    def test_trusted_quay(self, tmp_path: Path):
+        cf = _make_cf(tmp_path, "services:\n  app:\n    image: quay.io/prometheus/node-exporter:v1.5\n")
+        issues = _run_service_rule("CA003", "app", {"image": "quay.io/prometheus/node-exporter:v1.5"}, cf)
+        assert len(issues) == 0
+
+    def test_severity_is_info(self):
+        rule = get_rule("CA003")
+        assert rule is not None
+        assert rule.severity == Severity.INFO
+
+
 # ── CA101: No Inline Secrets ─────────────────────────────────
 
 
@@ -382,10 +428,10 @@ class TestCA601:
 
 
 class TestRuleRegistry:
-    def test_all_10_rules_registered(self):
+    def test_all_rules_registered(self):
         rules = get_all_rules()
         rule_ids = {r.id for r in rules}
-        expected = {"CA001", "CA101", "CA201", "CA202", "CA203", "CA301", "CA401", "CA402", "CA403", "CA601"}
+        expected = {"CA001", "CA003", "CA101", "CA201", "CA202", "CA203", "CA301", "CA401", "CA402", "CA403", "CA601"}
         assert rule_ids == expected
 
     def test_get_rule_by_id(self):

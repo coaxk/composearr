@@ -69,16 +69,21 @@ class NoLatestTag(BaseRule):
                     service=service_name,
                     fix_available=True,
                     suggested_fix=fix,
+                    learn_more="https://docs.docker.com/compose/compose-file/05-services/#image",
                 )
             ]
 
         return []
 
+    _WHY = ":latest can pull breaking changes without warning, making rollbacks difficult"
+
     @staticmethod
     def _get_tag_suggestion(image: str) -> str:
         """Try to suggest a specific tag using the tag analyzer."""
+        why = NoLatestTag._WHY
+
         if not _network_enabled:
-            return "Pin to a specific version tag"
+            return f"Pin to a specific version tag \u2014 {why}"
 
         try:
             from composearr.analyzers.tag_analyzer import analyze_image
@@ -86,8 +91,14 @@ class NoLatestTag(BaseRule):
             suggestion = analyze_image(image)
             if suggestion and suggestion.recommended_tag:
                 base = image.rsplit(":", 1)[0] if ":" in image else image
-                return f"Pin to {base}:{suggestion.recommended_tag} ({suggestion.reasoning})"
+                return (
+                    f"Pin to {base}:{suggestion.recommended_tag} "
+                    f"({suggestion.reasoning}) \u2014 {why}"
+                )
         except Exception:
             pass
 
-        return "Pin to a specific version tag"
+        return (
+            f"Pin to a specific version tag \u2014 {why}. "
+            f"Check the image's registry for stable releases"
+        )

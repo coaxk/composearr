@@ -58,20 +58,32 @@ class PuidPgidMismatch(BaseRule):
         if len(puid_groups) <= 1:
             return []
 
-        # Build descriptive message
+        # Build descriptive message with bullet points for readability
         parts = []
         for puid_val, services in sorted(puid_groups.items(), key=lambda x: -len(x[1])):
             svc_list = ", ".join(services[:5])
             if len(services) > 5:
-                svc_list += f" +{len(services) - 5} more"
-            parts.append(f"PUID={puid_val} in {svc_list}")
+                svc_list += f" (+{len(services) - 5} more)"
+            parts.append(f"PUID={puid_val}: {svc_list}")
 
-        message = "PUID values differ across stack: " + " | ".join(parts)
+        message = "PUID values differ across stack:\n" + "\n".join(f"  \u2022 {p}" for p in parts)
+
+        # Suggest the majority value
+        majority_puid = max(puid_groups.items(), key=lambda x: len(x[1]))[0]
+        minority_services = [
+            svc for puid_val, services in puid_groups.items()
+            if puid_val != majority_puid for svc in services
+        ]
+        fix = (
+            f"Standardize to PUID={majority_puid} (used by most services). "
+            f"Update: {', '.join(minority_services[:5])}"
+        )
+
         return [
             self._make_issue(
                 message,
                 "cross-file",
-                suggested_fix="All media stack services should use the same PUID",
+                suggested_fix=fix,
                 learn_more="https://trash-guides.info/Hardlinks/How-to-setup-for/Docker/",
             )
         ]
@@ -103,9 +115,9 @@ class UmaskInconsistent(BaseRule):
 
         parts = []
         for umask_val, services in sorted(umask_groups.items(), key=lambda x: -len(x[1])):
-            parts.append(f"UMASK={umask_val} in {', '.join(services)}")
+            parts.append(f"UMASK={umask_val}: {', '.join(services)}")
 
-        message = "UMASK inconsistent: " + " | ".join(parts)
+        message = "UMASK inconsistent across services:\n" + "\n".join(f"  \u2022 {p}" for p in parts)
         return [
             self._make_issue(
                 message,
@@ -140,7 +152,7 @@ class MissingTimezone(BaseRule):
                     line=line,
                     service=service_name,
                     fix_available=True,
-                    suggested_fix="Add TZ environment variable (e.g. TZ=Australia/Sydney)",
+                    suggested_fix="Add to your environment block:\n    TZ: Australia/Sydney  # Set to your timezone",
                 )
             ]
         return []

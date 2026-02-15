@@ -81,9 +81,9 @@ class TestRulesCommand:
         assert "CA001" in result.output
         assert "no-latest-tag" in result.output
 
-    def test_lists_all_10_rules(self):
+    def test_lists_all_rules(self):
         result = runner.invoke(app, ["rules"])
-        for rule_id in ["CA001", "CA101", "CA201", "CA202", "CA203", "CA301", "CA401", "CA402", "CA403", "CA601"]:
+        for rule_id in ["CA001", "CA003", "CA101", "CA201", "CA202", "CA203", "CA301", "CA401", "CA402", "CA403", "CA601"]:
             assert rule_id in result.output
 
 

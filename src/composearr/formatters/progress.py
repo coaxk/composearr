@@ -27,8 +27,12 @@ PHASE_LABELS = {
 class RichProgressReporter:
     """Rich-based progress that implements ProgressCallback protocol."""
 
-    def __init__(self, console: Console) -> None:
-        self._console = console
+    def __init__(self, console: Console | None = None, stderr_mode: bool = False) -> None:
+        if stderr_mode:
+            import sys
+            self._console = Console(file=sys.stderr, force_terminal=True)
+        else:
+            self._console = console or Console()
         self._progress: Progress | None = None
         self._task_id: int | None = None
         self._phase: str = ""

@@ -59,3 +59,23 @@ def is_likely_secret(value: str, threshold: float = 0.75, min_length: int = 16) 
 
     entropy = calculate_shannon_entropy(value)
     return entropy >= threshold, entropy
+
+
+def rate_secret_strength(value: str) -> tuple[str, float]:
+    """Rate a secret's strength based on length and entropy.
+
+    Returns (rating, entropy) where rating is 'weak', 'medium', or 'strong'.
+    """
+    if not value:
+        return "weak", 0.0
+
+    entropy = calculate_shannon_entropy(value)
+    length = len(value)
+
+    # Combine length and entropy for rating
+    if length < 12 or entropy < 0.5:
+        return "weak", entropy
+    elif length < 24 or entropy < 0.7:
+        return "medium", entropy
+    else:
+        return "strong", entropy

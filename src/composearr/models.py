@@ -62,7 +62,7 @@ class FormatOptions:
 
     min_severity: Severity = Severity.ERROR
     verbose: bool = False
-    group_by: str = "severity"  # "severity" | "file" | "rule"
+    group_by: str = "rule"  # "rule" | "file" | "severity"
 
 
 @dataclass

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from rich import box
 from rich.console import Console
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.style import Style
 from rich.table import Table
@@ -37,12 +38,20 @@ C_INFO = "#3b82f6"
 C_TEAL = "#2dd4bf"
 
 
+_stdout_wrapped = False
+
+
 def make_console() -> Console:
     """Create a Console that works on Windows with Unicode."""
-    if os.name == "nt":
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
+    global _stdout_wrapped
+    if os.name == "nt" and not _stdout_wrapped:
+        try:
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace"
+            )
+            _stdout_wrapped = True
+        except Exception:
+            pass  # Already wrapped or buffer unavailable
     return Console(force_terminal=True, color_system="truecolor")
 
 
@@ -159,6 +168,11 @@ class ConsoleFormatter:
             self.console.print(
                 f"  [{C_WARN}]\u25cf[/] {_muted(f'{len(parse_errors)} files failed to parse')}"
             )
+            for cf in parse_errors:
+                rel = _rel_path(str(cf.path), root_path)
+                self.console.print(
+                    f"     [{C_WARN}]\u2022[/] [{C_TEXT}]{rel}[/]  {_muted(cf.parse_error)}"
+                )
 
         self.console.print()
 
@@ -281,9 +295,21 @@ class ConsoleFormatter:
             )
             self.console.print()
 
+            # Sub-group by file for better readability
+            by_file: dict[str, list[LintIssue]] = defaultdict(list)
             for issue in issues:
-                cf = self._find_compose_file(result, issue.file_path)
-                self._render_issue(issue, cf, root_path, opts.verbose)
+                by_file[issue.file_path].append(issue)
+
+            for file_path in sorted(by_file.keys()):
+                rel = _rel_path(file_path, root_path)
+                file_issues = by_file[file_path]
+                if len(by_file) > 1:
+                    self.console.print(f"    {_dim(rel)}")
+                cf = self._find_compose_file(result, file_path)
+                for issue in file_issues:
+                    self._render_issue(issue, cf, root_path, opts.verbose)
+                if len(by_file) > 1:
+                    self.console.print()
 
     # ── Issue Rendering ─────────────────────────────────────────
 
@@ -298,50 +324,65 @@ class ConsoleFormatter:
         rel = _rel_path(issue.file_path, root_path)
 
         if verbose and issue.line and compose_file and compose_file.raw_content:
-            # Full context mode (original behavior)
+            # Full context mode
             lines = compose_file.raw_content.splitlines()
             if 0 < issue.line <= len(lines):
                 self.console.print(f"    {_dim(f'{issue.line:>3}')}  {lines[issue.line - 1]}")
 
             svc_str = f" ({issue.service})" if issue.service else ""
-            self.console.print(
-                f"    {_dim('   ')}  [{sev_color}]\u25cf[/] [{sev_color}]{issue.rule_id}[/]"
-                f"  {issue.message}{_muted(svc_str)}"
+            # Use Padding for proper wrap indentation (10 = "    ...  " prefix width)
+            header = Text.from_markup(
+                f"[{sev_color}]\u25cf[/] [{sev_color}]{issue.rule_id}[/]  "
+                f"{issue.message}{_muted(svc_str)}"
             )
+            self.console.print(Padding(header, (0, 0, 0, 9)))
             if issue.suggested_fix:
-                self.console.print(
-                    f"    {_dim('   ')}  {_ok('\u2192')} [{C_TEAL}]{issue.suggested_fix}[/]"
+                fix_text = Text.from_markup(
+                    f"{_ok('\u2192')} [{C_TEAL}]{issue.suggested_fix}[/]"
                 )
+                self.console.print(Padding(fix_text, (0, 0, 0, 9)))
             if issue.learn_more:
-                self.console.print(f"    {_dim('   ')}  {_muted(issue.learn_more)}")
+                self.console.print(Padding(
+                    Text.from_markup(_muted(issue.learn_more)), (0, 0, 0, 9)
+                ))
             self.console.print()
         else:
-            # Compact mode (one line per issue)
-            svc_str = f" ({issue.service})" if issue.service else ""
+            # Compact mode — use Padding for proper continuation line indentation
+            svc_str = f" [bold {C_TEAL}]{issue.service}[/]" if issue.service else ""
             line_str = f":{issue.line}" if issue.line else ""
-            self.console.print(
-                f"    [{sev_color}]\u25cf[/] [{sev_color}]{issue.rule_id}[/]  "
-                f"{issue.message}{_muted(svc_str)}  "
-                f"{_dim(f'{rel}{line_str}')}"
+            loc = _dim(f"  {rel}{line_str}")
+            text = Text.from_markup(
+                f"[{sev_color}]\u25cf[/] [{sev_color}]{issue.rule_id}[/]  "
+                f"{issue.message}{svc_str}{loc}"
             )
+            self.console.print(Padding(text, (0, 0, 0, 4)))
 
     def _cross_file_panel(
         self, issues: list[LintIssue], root_path: str, verbose: bool
     ) -> None:
-        lines: list[str] = []
+        from rich.console import Group
+
+        renderables = []
         for issue in issues:
             sev_color = _severity_color(issue.severity)
-            lines.append(
+            header = Text.from_markup(
                 f"  [{sev_color}]\u25cf[/] [{sev_color}]{issue.rule_id}[/]  {issue.message}"
             )
+            renderables.append(header)
             if issue.suggested_fix:
-                lines.append(f"     {_ok('\u2192')} [{C_TEAL}]{issue.suggested_fix}[/]")
+                fix_text = Text.from_markup(
+                    f"{_ok('\u2192')} [{C_TEAL}]{issue.suggested_fix}[/]"
+                )
+                renderables.append(Padding(fix_text, (0, 0, 0, 7)))
             if issue.learn_more:
-                lines.append(f"     {_muted(issue.learn_more)}")
+                renderables.append(Padding(
+                    Text.from_markup(_muted(issue.learn_more)), (0, 0, 0, 7)
+                ))
+            renderables.append(Text(""))  # spacing
 
         self.console.print()
         self.console.print(Panel(
-            Text.from_markup("\n".join(lines)),
+            Group(*renderables),
             title=f"[{C_MUTED}]cross-file[/]",
             title_align="left",
             border_style=Style(color=C_BORDER),
@@ -361,8 +402,10 @@ class ConsoleFormatter:
             hints.append(f"[{C_TEAL}]--severity info[/] {_muted('to see everything')}")
         if not opts.verbose:
             hints.append(f"[{C_TEAL}]--verbose[/] {_muted('for full file context')}")
-        if opts.group_by == "severity":
+        if opts.group_by == "rule":
             hints.append(f"[{C_TEAL}]--group-by file[/] {_muted('to group by file')}")
+        elif opts.group_by != "rule":
+            hints.append(f"[{C_TEAL}]--group-by rule[/] {_muted('to group by rule')}")
 
         if hints:
             self.console.print(f"  {_muted('Try:')}  {'  \u2022  '.join(hints)}")

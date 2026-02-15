@@ -64,7 +64,7 @@ class TestRecommendTag:
         tags = ["latest", "1.0.0", "1.1.0", "2.0.0", "beta"]
         tag, reason = _recommend_tag(tags, "myapp/service")
         assert tag == "2.0.0"
-        assert "semantic" in reason.lower()
+        assert "stable" in reason.lower()
 
     def test_empty_tags(self):
         tag, reason = _recommend_tag([], "myapp/service")

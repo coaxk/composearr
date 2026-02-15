@@ -103,17 +103,17 @@ def _recommend_tag(tags: list[str], repo: str) -> tuple[str, str]:
         if version_tags:
             best = _latest_semver(version_tags, prefix="version-")
             if best:
-                return best, "LinuxServer convention: version-X.Y.Z"
+                return best, "LinuxServer stable release"
 
     # Hotio: prefer release
     if "hotio" in repo.lower():
         if "release" in tags:
-            return "release", "Hotio convention: stable release channel"
+            return "release", "Hotio stable channel"
 
     # General: find latest semver
     best = _latest_semver(tags)
     if best:
-        return best, "Latest semantic version"
+        return best, "latest stable version"
 
     return "", "Could not determine best tag"
 

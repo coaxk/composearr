@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from composearr.scanner.platform_detect import classify_paths
@@ -12,6 +13,46 @@ COMPOSE_FILENAMES = {
     "docker-compose.yaml",
     "docker-compose.yml",
 }
+
+# Common Docker stack locations to check for auto-detection
+_COMMON_STACK_PATHS: list[Path] = [
+    Path.home() / "docker",
+    Path.home() / "Docker",
+    Path.home() / "stacks",
+]
+
+# Add platform-specific paths
+if sys.platform == "win32":
+    _COMMON_STACK_PATHS.extend([
+        Path("C:/DockerContainers"),
+        Path("D:/DockerContainers"),
+        Path("C:/docker"),
+        Path("D:/docker"),
+    ])
+else:
+    _COMMON_STACK_PATHS.extend([
+        Path("/opt/stacks"),
+        Path("/opt/docker"),
+        Path("/srv/docker"),
+    ])
+
+
+def detect_stack_directory() -> Path | None:
+    """Auto-detect a Docker stack directory from common locations.
+
+    Returns the first directory that contains compose files, or None.
+    """
+    for path in _COMMON_STACK_PATHS:
+        try:
+            if not path.is_dir():
+                continue
+            # Quick check: does this directory have any compose files?
+            for name in COMPOSE_FILENAMES:
+                if any(path.rglob(name)):
+                    return path.resolve()
+        except (OSError, PermissionError):
+            continue
+    return None
 
 
 def discover_compose_files(root_path: Path) -> tuple[list[Path], dict[str, list[Path]]]:

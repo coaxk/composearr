@@ -25,12 +25,14 @@ _RULE_NAME_TO_ID: dict[str, str] = {
     "puid-pgid-mismatch": "CA401",
     "umask-inconsistent": "CA402",
     "missing-timezone": "CA403",
+    "untrusted-registry": "CA003",
     "hardlink-path-mismatch": "CA601",
 }
 
 # Default rule severities
 DEFAULT_RULES: dict[str, str] = {
     "CA001": "warning",
+    "CA003": "info",
     "CA101": "error",
     "CA201": "warning",
     "CA202": "warning",

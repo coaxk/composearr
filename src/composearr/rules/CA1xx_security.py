@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from composearr.analyzers.entropy import is_likely_secret
+from composearr.analyzers.entropy import is_likely_secret, rate_secret_strength
 from composearr.models import LintIssue, Scope, Severity
 from composearr.rules.base import BaseRule
 from composearr.scanner.parser import find_line_number
@@ -127,9 +127,15 @@ class NoInlineSecrets(BaseRule):
             if is_secret_name and value and not _PLACEHOLDER_PATTERNS.match(value) and not _SAFE_VALUE_PATTERNS.match(value) and len(value) >= 8:
                 # Secret-named variable with a non-placeholder, non-trivial value
                 line = find_line_number(compose_file.raw_content, key, value[:20] if len(value) > 20 else value)
+                strength, _ = rate_secret_strength(value)
+                strength_hint = ""
+                if strength == "weak":
+                    strength_hint = " (weak secret \u2014 use 32+ random chars)"
+                elif strength == "medium":
+                    strength_hint = " (medium strength \u2014 consider longer random value)"
                 issues.append(
                     self._make_issue(
-                        f"{key} contains secret value inline",
+                        f"{key} contains secret value inline{strength_hint}",
                         str(compose_file.path),
                         line=line,
                         service=service_name,
@@ -140,9 +146,15 @@ class NoInlineSecrets(BaseRule):
             elif is_secret_value and not is_secret_name:
                 # Value looks like a secret even though the name doesn't suggest it
                 line = find_line_number(compose_file.raw_content, key)
+                strength, _ = rate_secret_strength(value)
+                strength_hint = ""
+                if strength == "weak":
+                    strength_hint = " (weak \u2014 use 32+ random chars)"
+                elif strength == "medium":
+                    strength_hint = " (medium strength)"
                 issues.append(
                     self._make_issue(
-                        f"{key} appears to contain a secret value",
+                        f"{key} appears to contain a secret value{strength_hint}",
                         str(compose_file.path),
                         line=line,
                         service=service_name,

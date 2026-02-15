@@ -121,7 +121,7 @@ class RequireRestartPolicy(BaseRule):
                     line=line,
                     service=service_name,
                     fix_available=True,
-                    suggested_fix="Add restart: unless-stopped",
+                    suggested_fix="Add to your service:\n    restart: unless-stopped",
                 )
             ]
         return []
