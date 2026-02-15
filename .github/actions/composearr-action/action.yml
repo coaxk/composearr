@@ -1,0 +1,106 @@
+name: "ComposeArr Audit"
+description: "Lint and audit Docker Compose files for security, reliability, and best-practice issues."
+
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  path:
+    description: "Path to scan for Docker Compose files."
+    required: false
+    default: "."
+  severity:
+    description: "Minimum severity level to report (error, warning, info)."
+    required: false
+    default: "error"
+  fail-on:
+    description: "Severity level that causes a non-zero exit code (error, warning, info)."
+    required: false
+    default: "error"
+  config:
+    description: "Path to a .composearr.yml configuration file."
+    required: false
+    default: ""
+  ignore:
+    description: "Comma-separated list of rule IDs to skip (e.g. CA001,CA201)."
+    required: false
+    default: ""
+  format:
+    description: "Output format passed to the CLI (github, json, sarif, console)."
+    required: false
+    default: "github"
+
+outputs:
+  errors:
+    description: "Number of error-level issues found."
+    value: ${{ steps.audit.outputs.errors }}
+  warnings:
+    description: "Number of warning-level issues found."
+    value: ${{ steps.audit.outputs.warnings }}
+  files-scanned:
+    description: "Number of Compose files scanned."
+    value: ${{ steps.audit.outputs.files_scanned }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ">=3.11"
+
+    - name: Install ComposeArr
+      shell: bash
+      run: |
+        pip install --quiet "${{ github.action_path }}/../../.."
+
+    - name: Run ComposeArr audit
+      id: audit
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_SEVERITY: ${{ inputs.severity }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_IGNORE: ${{ inputs.ignore }}
+        INPUT_FORMAT: ${{ inputs.format }}
+      run: |
+        args=("${INPUT_PATH}" --severity "${INPUT_SEVERITY}" --format "${INPUT_FORMAT}")
+
+        if [[ -n "${INPUT_IGNORE}" ]]; then
+          args+=(--ignore "${INPUT_IGNORE}")
+        fi
+
+        # Capture output while still printing annotations to stdout
+        output_file="$(mktemp)"
+        set +e
+        composearr audit "${args[@]}" > "${output_file}" 2>&1
+        exit_code=$?
+        set -e
+
+        # Print the output so GitHub picks up annotations
+        cat "${output_file}"
+
+        # Count errors and warnings from the annotation lines
+        errors=$(grep -c '^::error ' "${output_file}" || true)
+        warnings=$(grep -c '^::warning ' "${output_file}" || true)
+        notices=$(grep -c '^::notice ' "${output_file}" || true)
+        files_scanned=$(grep -oP 'file=\K[^,]+' "${output_file}" | sort -u | wc -l || true)
+
+        echo "errors=${errors}" >> "${GITHUB_OUTPUT}"
+        echo "warnings=${warnings}" >> "${GITHUB_OUTPUT}"
+        echo "files_scanned=${files_scanned}" >> "${GITHUB_OUTPUT}"
+
+        rm -f "${output_file}"
+
+        # Determine whether to fail based on fail-on threshold
+        if [[ "${INPUT_FAIL_ON}" == "info" ]]; then
+          total=$(( errors + warnings + notices ))
+          [[ ${total} -gt 0 ]] && exit 1
+        elif [[ "${INPUT_FAIL_ON}" == "warning" ]]; then
+          total=$(( errors + warnings ))
+          [[ ${total} -gt 0 ]] && exit 1
+        else
+          [[ ${errors} -gt 0 ]] && exit 1
+        fi

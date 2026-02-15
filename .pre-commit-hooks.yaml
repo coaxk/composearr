@@ -1,0 +1,8 @@
+- id: composearr
+  name: ComposeArr Docker Compose Linter
+  description: Audit Docker Compose files for security, reliability, and best-practice issues.
+  entry: composearr audit --severity error --format console
+  language: python
+  types: [yaml]
+  require_serial: true
+  minimum_pre_commit_version: "3.0.0"

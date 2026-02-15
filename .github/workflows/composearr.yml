@@ -1,0 +1,47 @@
+name: ComposeArr Audit
+
+on:
+  push:
+    paths:
+      - "**/compose.yaml"
+      - "**/compose.yml"
+      - "**/docker-compose.yaml"
+      - "**/docker-compose.yml"
+  pull_request:
+    paths:
+      - "**/compose.yaml"
+      - "**/compose.yml"
+      - "**/docker-compose.yaml"
+      - "**/docker-compose.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Docker Compose files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ComposeArr
+        id: composearr
+        uses: ./.github/actions/composearr-action
+        with:
+          path: "."
+          severity: warning
+          fail-on: error
+          format: github
+
+      - name: Print summary
+        if: always()
+        run: |
+          echo "### ComposeArr Audit Results" >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| Metric | Count |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "|--------|-------|" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| Errors | ${{ steps.composearr.outputs.errors }} |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| Warnings | ${{ steps.composearr.outputs.warnings }} |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| Files scanned | ${{ steps.composearr.outputs.files-scanned }} |" >> "${GITHUB_STEP_SUMMARY}"
