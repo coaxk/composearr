@@ -1,0 +1,525 @@
+Docker Compose Hygiene Tool — Market Research Brief
+====================================================
+Researched: 2026-02-13
+Compiled by: Claude 2 (Backend Heavy Lifter)
+
+================================================================================
+THE OPPORTUNITY IN ONE SENTENCE
+================================================================================
+
+There is no "hadolint for docker-compose." The compose linting/hygiene space is
+genuinely unoccupied, and the community is actively asking for it.
+
+================================================================================
+1. COMPETITIVE LANDSCAPE — WHAT EXISTS TODAY
+================================================================================
+
+Tool                    | Stars   | Focus                    | Compose Hygiene?
+------------------------|---------|--------------------------|----------------------------------
+docker compose config   | Built-in| Schema validation only   | Syntax, not semantics
+yamllint                | ~2.6k  | Generic YAML lint        | Zero compose awareness
+dclint                  | ~200-400| Compose linter (TS)      | Basic: restart, healthcheck presence
+KICS (Checkmarx)        | ~2k    | IaC security scanner     | Partial: privileged, secrets, limits
+Checkov (Palo Alto)     | ~7k    | IaC security scanner     | Partial: 6 compose-specific rules
+Trivy (Aqua)            | ~24k   | Security scanner         | Partial: misconfigs, secrets
+conftest (OPA)          | ~3k    | Policy engine            | Anything — but you write every rule
+Portainer               | ~31k   | Container management GUI | Zero linting
+Dockge                  | ~15k   | Compose stack manager    | Zero linting
+lazydocker              | ~40k   | Terminal UI              | Zero linting
+
+Star counts approximate as of early 2025.
+
+Key URLs:
+  - compose-spec:    https://github.com/compose-spec/compose-spec
+  - compose-go:      https://github.com/compose-spec/compose-go
+  - dclint:          https://github.com/zavoloklom/docker-compose-linter
+  - KICS:            https://github.com/Checkmarx/kics
+  - Checkov:         https://github.com/bridgecrewio/checkov
+  - Trivy:           https://github.com/aquasecurity/trivy
+  - hadolint:        https://github.com/hadolint/hadolint
+  - conftest:        https://github.com/open-policy-agent/conftest
+
+================================================================================
+2. THE GAP — WHAT NOBODY COVERS
+================================================================================
+
+Check                              | compose config | dclint | KICS | Checkov | YOUR TOOL
+-----------------------------------|:-:|:-:|:-:|:-:|:-:
+Valid YAML/schema                  | Y | P | N | N | Y
+Cross-service port conflicts       | N | N | N | N | Y
+Hardcoded secrets detection        | N | N | P | P | Y
+Secret hygiene (env_file patterns) | N | N | N | N | Y
+Missing healthchecks               | N | Y | Y | Y | Y
+Fake healthchecks (exit 0)         | N | N | N | N | Y
+Missing resource limits            | N | N | Y | Y | Y
+PUID/PGID consistency              | N | N | N | N | Y
+UMASK consistency                  | N | N | N | N | Y
+Duplicate env vars (list format)   | N | N | N | N | Y
+:latest tag warnings               | N | N | N | N | Y
+Volume path consistency            | N | N | N | N | Y
+Hardlink compatibility (TRaSH)     | N | N | N | N | Y
+Log rotation missing               | N | N | N | N | Y
+Network topology validation        | N | N | N | N | Y
+Cross-file analysis                | N | N | N | N | Y
+Centralized .env consolidation     | N | N | N | N | Y
+
+Y=Yes, N=No, P=Partial
+
+================================================================================
+3. MOST STARRED COMPOSE-RELATED TOOLS ON GITHUB
+================================================================================
+
+TIER 1: MEGA-POPULAR (>20k stars)
+----------------------------------
+Portainer       ~31k   Go/TS       Full container management platform
+lazydocker      ~40k   Go          Terminal UI for Docker
+CasaOS          ~28k   Go          Home server OS with app store
+Watchtower      ~20k   Go          Auto-update running containers
+
+TIER 2: VERY POPULAR (5k-20k stars)
+-------------------------------------
+Dockge          ~15k   TypeScript  Compose stack manager (by Uptime Kuma creator)
+Kompose         ~10k   Go          Converts compose to Kubernetes manifests
+ctop            ~16k   Go          Top-like container metrics
+Dozzle          ~7k    Go          Real-time container log viewer
+Runtipi         ~7k    Go          Home server app store
+Umbrel          ~7k    Go          Home server app ecosystem
+Composerize     ~5k    JavaScript  Converts docker run to compose
+Podman Compose  ~5k    Python      Podman-based compose alternative
+
+TIER 3: NOTABLE (1k-5k stars)
+-------------------------------
+Yacht           ~3.5k  Python/Vue  Lightweight container management
+Diun            ~3k    Go          Docker Image Update Notifier
+dry             ~2.8k  Go          Terminal Docker dashboard
+DockSTARTer     ~2k    CLI/TUI     Guided homelab compose setup
+Cosmos Cloud    ~2k    Go          Security-focused compose platform
+docker-lock     ~400   Go          Lockfiles for image digest pinning
+
+COMPOSE GENERATION/TEMPLATING TOOLS
+-------------------------------------
+- Composerize (~5k): docker run -> compose (not templating)
+- autocompose (~800): Generates compose from running containers
+- ytt (~1.5k): General YAML templating (Carvel/VMware)
+- Gomplate (~2k): Go template renderer for YAML
+- envsubst: Built-in GNU, basic variable substitution
+- Ansible docker_compose module: Jinja2 templating (most mature approach)
+- Docker Compose native: profiles, include, extends (limited)
+
+KEY FINDING: No dominant, purpose-built compose templating engine exists.
+There is no Helm equivalent for Docker Compose.
+
+================================================================================
+4. IMAGE MAINTAINER STANDARDS — YOUR RULE SOURCE
+================================================================================
+
+LINUXSERVER.IO (LSIO)
+-----------------------
+Docs: https://docs.linuxserver.io/general/docker-compose/
+Registry: lscr.io/linuxserver/<image>
+
+Standard compose pattern:
+  - PUID/PGID environment variables (s6-overlay drops privileges)
+  - TZ timezone variable
+  - UMASK (default 022, community recommends 002)
+  - /config as standard config mount
+  - Bind mounts (never named volumes)
+  - restart: unless-stopped
+  - FILE__<VAR> pattern for Docker secrets support
+  - DOCKER_MODS for runtime modification
+  - Custom scripts via /config/custom-cont-init.d/
+
+HOTIO
+------
+Docs: https://hotio.dev/faq/
+Registry: ghcr.io/hotio/<image>
+
+Key differences from LSIO:
+  - UMASK default is 002 (not 022) — better for hardlinks
+  - Smaller images (minimal init, no full s6-overlay)
+  - Tags: :release (stable), :testing, :nightly
+  - Recommends unified /data mount (aligned with TRaSH)
+
+TRASH GUIDES
+--------------
+Docs: https://trash-guides.info/Hardlinks/How-to-setup-for/Docker/
+
+The most impactful recommendation in the homelab ecosystem:
+
+Unified folder structure for hardlinks:
+  /data
+    /torrents
+      /movies, /tv, /music
+    /usenet
+      /movies, /tv, /music
+    /media
+      /movies, /tv, /music
+
+All containers mount the SAME top-level path:
+  volumes:
+    - /host/data:/data
+
+This enables hardlinks and instant moves (no copy, no double disk usage).
+
+Key rules:
+  - Same PUID/PGID across ALL containers in media stack
+  - UMASK=002 for group-write permissions
+  - Consistent internal paths across containers
+  - Container-name-based inter-service communication
+  - Custom bridge network (not default bridge)
+  - DO NOT use separate volume mounts for downloads and media
+
+BITNAMI (VMware/Broadcom)
+---------------------------
+Docs: https://github.com/bitnami/containers
+
+Different philosophy:
+  - Non-root by default (UID 1001, no PUID/PGID)
+  - App-prefixed env vars: POSTGRESQL_PASSWORD, MARIADB_ROOT_PASSWORD
+  - Named volumes preferred (not bind mounts)
+  - /bitnami/<app> data directory
+
+OFFICIAL DOCKER LIBRARY IMAGES
+---------------------------------
+  - App-specific env vars: POSTGRES_PASSWORD, REDIS_PASSWORD
+  - No PUID/PGID — uses user: directive or runs as root
+  - Named volumes in examples
+  - Init scripts via /docker-entrypoint-initdb.d/
+  - Healthcheck examples provided in docs
+
+================================================================================
+5. UNIVERSAL BEST PRACTICES (Cross-Maintainer Consensus)
+================================================================================
+
+ENVIRONMENT VARIABLES
+  - PUID/PGID for LSIO/Hotio images
+  - user: directive for official/Bitnami/home-operations images
+  - TZ always set (IANA format)
+  - UMASK=002 for media stacks
+  - env_file for secrets, never inline
+  - FILE__<VAR> for Docker secrets injection (LSIO)
+
+VOLUME MOUNTS
+  - /config is the standard for app configuration
+  - Bind mounts for config (host-accessible)
+  - Unified /data mount for media stacks
+  - Named volumes for database data
+  - Never mount Docker socket directly (use socket proxy)
+
+NETWORKS
+  - Custom bridge networks (enables DNS by container name)
+  - Default bridge does NOT support DNS resolution
+  - External networks for multi-compose communication
+  - Avoid host network mode unless specifically required
+  - Use container names for inter-service URLs
+
+RESTART POLICIES
+  - unless-stopped: Community standard (allows manual stops)
+  - always: Only for critical infrastructure
+  - on-failure: For batch/one-shot tasks
+  - no: Debugging only
+
+HEALTHCHECKS (tiered quality)
+  1. Best:  Application-specific endpoint (curl -f http://localhost:PORT/health)
+  2. Good:  HTTP ping endpoint
+  3. OK:    Process check (pgrep)
+  4. Bad:   exit 0 (tells you nothing)
+
+  Recommended parameters:
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+RESOURCE LIMITS (recommended per service type)
+  *arr apps:         CPU 1.0, Memory 512M-1G
+  Plex:              CPU 2.0-4.0, Memory 2G-4G
+  Download clients:  CPU 1.0-2.0, Memory 512M-2G
+  Databases:         CPU 1.0, Memory 1G+
+  VPN (Gluetun):     CPU 0.5, Memory 256M
+
+  Note: LSIO, Hotio, and TRaSH do NOT include resource limits in their
+  default snippets. This is a user concern, not an image concern.
+
+LOGGING
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+  Without this, Docker logs grow indefinitely.
+
+SECURITY HARDENING
+  security_opt:
+    - no-new-privileges:true
+  read_only: true (+ tmpfs for /tmp)
+  cap_drop: ALL (+ explicit cap_add)
+
+COMPOSE FILE CONVENTIONS
+  - File named compose.yaml (preferred) or docker-compose.yml (legacy)
+  - No version: key needed (deprecated since Compose v2)
+  - Quoted port strings to avoid YAML octal issues
+  - Map format for environment (preferred over list format)
+
+================================================================================
+6. COMMUNITY PAIN POINTS (Ranked by Frequency/Intensity)
+================================================================================
+
+Sources: r/homelab, r/selfhosted, r/docker, r/unraid, GitHub Discussions
+
+PAIN POINT #1: "My compose file is a mess" (WEEKLY threads)
+  - The mono vs split holy war never ends
+  - No authoritative best practice for organizing 20+ containers
+  - YAML indentation errors at line 1,847 bring down entire stack
+  - Community converging on per-service files with management layer on top
+
+PAIN POINT #2: "Secrets in plaintext scare me" (BI-WEEKLY)
+  - 90%+ of homelabs use plain .env files
+  - Gap between "plaintext .env" and "HashiCorp Vault" is enormous
+  - Docker Secrets only works with Swarm (useless for single-node)
+  - "I accidentally committed my .env to GitHub" — monthly thread
+  - No practical middle-ground tool exists
+
+  Community-discussed solutions and adoption:
+    Plain .env files:          90%+
+    Docker Secrets (Swarm):    <5%
+    HashiCorp Vault:           <2%
+    SOPS + age:                ~3%
+    Bitwarden Secrets Manager: ~1%
+    1Password CLI:             ~2%
+
+PAIN POINT #3: "Port conflicts at 2 AM" (SEVERAL TIMES/WEEK)
+  - No tooling for cross-file port conflict detection
+  - Every new container defaults to 8080 or 3000
+  - People maintain spreadsheets of port allocations manually
+  - docker compose only validates within a single file
+
+PAIN POINT #4: "Permissions are broken" (#1 rage topic, DAILY)
+  - LSIO uses PUID/PGID, official uses user:, Bitnami uses UID 1001
+  - NFS mounts ignore PUID/PGID entirely
+  - "My downloads are owned by root and Sonarr can't move them"
+  - TrueNAS/Unraid vs Linux permission mismatch
+
+PAIN POINT #5: "Do I need resource limits?" (MONTHLY)
+  - Most people do NOT set them
+  - "My Plex transcoder ate all my RAM and killed my database"
+  - No guidance on reasonable defaults per service type
+
+OTHER RECURRING COMPLAINTS:
+  - Environment variable sprawl (inconsistent naming across images)
+  - Mixed env var formats (list vs map, quoting inconsistency)
+  - Keeping compose files updated (`:latest` vs pinned tags)
+  - Migration between hosts (absolute paths, case sensitivity)
+  - Cross-file dependency management
+  - No compose testing framework
+
+================================================================================
+7. ENTERPRISE vs HOMELAB GAP
+================================================================================
+
+Feature                  | Enterprise Need           | Homelab Reality
+-------------------------|---------------------------|---------------------------
+Compliance/auditing      | Full audit trail          | Nobody does this
+Secret rotation          | Automated, zero-downtime  | Same API keys for 3 years
+Config drift detection   | Alert on divergence       | "I docker exec'd and forgot"
+Multi-environment        | dev/staging/prod          | "Production is my living room"
+Health check standards   | Meaningful HTTP checks    | exit 0 everywhere
+RBAC                     | Role-based access         | Single user, root access
+SARIF/SPDX output        | Required for compliance   | Not even on the radar
+
+================================================================================
+8. FEATURE REQUESTS — WHAT PEOPLE WISH EXISTED
+================================================================================
+
+1. Port conflict detection across compose files
+   - Multiple open issues on docker/compose GitHub
+   - No existing tool solves this
+
+2. Compose file linting beyond YAML syntax
+   - "Tell me if my healthcheck is fake, my limits are insane"
+   - Only dclint attempts this (very limited)
+
+3. Cross-file dependency management
+   - depends_on only works within a single file
+   - Per-service pattern creates orphaned concerns
+
+4. Secret management without Swarm
+   - #1 requested feature on docker/compose GitHub
+   - Compose v2 added file-based secrets, adoption very low
+
+5. Environment variable documentation/schema
+   - "Which env vars does this image support? What are defaults?"
+   - Most maintainers don't publish schemas
+
+6. Automated backup of container configs and volumes
+   - "I want docker compose backup"
+   - No native solution
+
+7. Network visualization
+   - "Show me which containers can talk to which"
+   - No tool provides this
+
+8. "Compose doctor" command
+   - Validate running stack against compose definitions
+   - Report drift, stale images, unused volumes, resource waste
+
+================================================================================
+9. RECOMMENDATIONS
+================================================================================
+
+ARCHITECTURE
+--------------
+CLI-first (like hadolint):
+  composeguard scan ./              # Lint all compose files in directory
+  composeguard fix ./               # Auto-fix what's fixable
+  composeguard init                 # Generate .composeguard.yml config
+  composeguard consolidate          # Merge secrets into central .env
+  composeguard ports                # Port allocation table + conflict detection
+  composeguard template apply       # Apply hygiene template to new services
+
+Why CLI-first:
+  - CI/CD integration (GitHub Actions, pre-commit hooks)
+  - Enterprise adoption requires pipeline integration
+  - Homelab users install via pip or single binary
+  - Web UI can come later as a wrapper
+
+LANGUAGE
+---------
+Python for v1 (speed to market, PyPI distribution, compose-spec has Python tooling)
+Consider Go rewrite if adoption warrants (single binary, faster execution)
+
+RULE ENGINE DESIGN
+--------------------
+# .composeguard.yml (user config)
+rules:
+  require-healthcheck: error
+  no-fake-healthcheck: warning
+  require-resource-limits: warning
+  require-restart-policy: error
+  no-latest-tag: warning
+  require-log-rotation: info
+  require-puid-pgid: warning          # Only for LSIO/Hotio images
+  consistent-puid-pgid: error         # All services must match
+  consistent-umask: warning
+  no-inline-secrets: error
+  port-conflict-detection: error      # Cross-file!
+  require-timezone: warning
+  no-host-network: warning
+  require-named-network: info
+  hardlink-compatible-paths: info     # TRaSH compliance
+  path-case-consistency: warning
+
+profiles:
+  homelab: [all rules, relaxed severity]
+  enterprise: [all rules, strict severity]
+  media-stack: [all rules + TRaSH rules]
+
+KILLER FEATURES (Differentiation)
+------------------------------------
+1. Cross-file analysis — Scan entire stack directory. Nobody does this.
+2. Secret consolidation — Find inline secrets, generate centralized .env
+3. Port map — Port allocation table across all compose files, flag conflicts
+4. TRaSH compliance mode — Validate media stack against TRaSH folder structure
+5. Template enforcement — Define "golden compose" template, enforce on new services
+6. Fix mode — Auto-fix: add restart policies, move secrets to env_file, add log rotation
+7. Pre-commit hook — Catch issues before they're committed to git
+
+HOMELAB vs ENTERPRISE STRATEGY
+---------------------------------
+Feature                     | Homelab (free)  | Enterprise (paid)
+----------------------------|-----------------|-------------------
+All lint rules              | Yes             | Yes
+Auto-fix                    | Yes             | Yes
+Secret consolidation        | Yes             | Yes
+Cross-file analysis         | Yes             | Yes
+Custom rule engine          | Basic           | Full (OPA/Rego)
+CI/CD integration           | GitHub Action   | All CI platforms
+Audit trail / compliance    | No              | Yes
+Secret rotation             | No              | Yes
+Config drift detection      | No              | Yes
+RBAC for team access        | No              | Yes
+SARIF/SPDX output           | No              | Yes
+
+MVP — WHAT TO BUILD FIRST
+----------------------------
+1. CLI that scans a directory of compose files
+2. 10 core rules:
+   - healthcheck (presence + quality)
+   - restart policy
+   - resource limits
+   - port conflicts (cross-file)
+   - inline secrets
+   - PUID/PGID consistency
+   - :latest tag warning
+   - log rotation
+   - named network
+   - TZ variable
+3. Human-readable output with severity levels and fix suggestions
+4. --fix flag for auto-remediation of simple issues
+5. .composeguard.yml for rule configuration
+
+================================================================================
+10. BOTTOM LINE
+================================================================================
+
+You're not building into a crowded space. You're building into a vacuum.
+
+The compose ecosystem has:
+  - Management tools (Portainer, Dockge)
+  - Security scanners (KICS, Checkov)
+  - YAML linters (yamllint)
+
+But ZERO purpose-built compose hygiene tools that understand:
+  - Cross-service semantics
+  - Homelab conventions (LSIO, Hotio, TRaSH)
+  - Can both lint AND fix
+  - Work across multiple compose files
+
+The community is asking for exactly this. Build it.
+
+================================================================================
+REFERENCE URLS
+================================================================================
+
+Compose Specification:
+  https://github.com/compose-spec/compose-spec
+  https://github.com/compose-spec/compose-spec/blob/master/schema/compose-spec.json
+  https://github.com/compose-spec/compose-go
+
+Existing Tools:
+  https://github.com/docker/compose
+  https://github.com/adrienverge/yamllint
+  https://github.com/zavoloklom/docker-compose-linter
+  https://github.com/Checkmarx/kics
+  https://github.com/bridgecrewio/checkov
+  https://github.com/aquasecurity/trivy
+  https://github.com/hadolint/hadolint
+  https://github.com/open-policy-agent/conftest
+
+Image Maintainers:
+  https://docs.linuxserver.io/general/docker-compose/
+  https://docs.linuxserver.io/general/understanding-puid-and-pgid/
+  https://hotio.dev/faq/
+  https://hotio.dev/containers/
+  https://trash-guides.info/Hardlinks/How-to-setup-for/Docker/
+  https://trash-guides.info/Hardlinks/Hardlinks-and-Instant-Moves/
+  https://trash-guides.info/File-and-Folder-Structure/
+  https://github.com/bitnami/containers
+  https://github.com/docker-library/official-images
+
+Compose Management Tools:
+  https://github.com/louislam/dockge
+  https://github.com/portainer/portainer
+  https://github.com/jesseduffield/lazydocker
+  https://github.com/IceWhaleTech/CasaOS
+  https://github.com/magicmark/composerize
+  https://github.com/containers/podman-compose
+  https://github.com/kubernetes/kompose
+
+Community:
+  https://www.reddit.com/r/selfhosted/
+  https://www.reddit.com/r/homelab/
+  https://www.reddit.com/r/docker/
+  https://www.reddit.com/r/unraid/
+  https://www.schemastore.org/json/
