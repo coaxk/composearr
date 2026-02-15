@@ -15,19 +15,29 @@ yaml = YAML()
 yaml.preserve_quotes = True
 
 
+class FixResult:
+    """Result of applying fixes."""
+
+    __slots__ = ("applied", "skipped", "errors", "backup_paths")
+
+    def __init__(self) -> None:
+        self.applied: int = 0
+        self.skipped: int = 0
+        self.errors: int = 0
+        self.backup_paths: list[Path] = []
+
+
 def apply_fixes(
     issues: list[LintIssue],
     root: Path,
     *,
     backup: bool = True,
-) -> tuple[int, int, int]:
+) -> FixResult:
     """Apply fixes to compose files.
 
-    Returns (applied, skipped, errors) counts.
+    Returns a FixResult with counts and backup file paths.
     """
-    applied = 0
-    skipped = 0
-    errors = 0
+    result = FixResult()
 
     # Group by file so we only read/write each file once
     by_file: dict[str, list[LintIssue]] = defaultdict(list)
@@ -38,7 +48,7 @@ def apply_fixes(
     for file_path, file_issues in by_file.items():
         path = Path(file_path)
         if not path.is_file():
-            errors += len(file_issues)
+            result.errors += len(file_issues)
             continue
 
         try:
@@ -46,29 +56,31 @@ def apply_fixes(
             data = yaml.load(content)
 
             if data is None or "services" not in data:
-                skipped += len(file_issues)
+                result.skipped += len(file_issues)
                 continue
 
             if backup:
-                shutil.copy2(path, path.with_suffix(path.suffix + ".bak"))
+                bak_path = path.with_suffix(path.suffix + ".bak")
+                shutil.copy2(path, bak_path)
+                result.backup_paths.append(bak_path)
 
             modified = False
             for issue in file_issues:
-                result = _apply_single_fix(data, issue)
-                if result:
-                    applied += 1
+                fix_ok = _apply_single_fix(data, issue)
+                if fix_ok:
+                    result.applied += 1
                     modified = True
                 else:
-                    skipped += 1
+                    result.skipped += 1
 
             if modified:
                 with open(path, "w", encoding="utf-8") as f:
                     yaml.dump(data, f)
 
         except Exception:
-            errors += len(file_issues)
+            result.errors += len(file_issues)
 
-    return applied, skipped, errors
+    return result
 
 
 def _apply_single_fix(data: dict, issue: LintIssue) -> bool:

@@ -697,17 +697,27 @@ def _tui_fix(console: Console, session: dict) -> None:
 
     from composearr.fixer import apply_fixes
     backup = action == "apply_backup"
-    applied, skipped, errors = apply_fixes(fixable, root, backup=backup)
+    fix_result = apply_fixes(fixable, root, backup=backup)
 
     console.print()
-    if applied:
-        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Applied {applied} fixes[/]")
-    if skipped:
-        console.print(f"  [{C_WARN}]\u26a0[/] [{C_TEXT}]{skipped} fixes skipped (not auto-applicable)[/]")
-    if errors:
-        console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]{errors} fixes failed[/]")
-    if backup and applied:
-        console.print(f"  [{C_MUTED}]Backup files saved with .bak extension[/]")
+    if fix_result.applied:
+        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Applied {fix_result.applied} fixes[/]")
+    if fix_result.skipped:
+        console.print(f"  [{C_WARN}]\u26a0[/] [{C_TEXT}]{fix_result.skipped} fixes skipped (not auto-applicable)[/]")
+    if fix_result.errors:
+        console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]{fix_result.errors} fixes failed[/]")
+    if fix_result.backup_paths:
+        console.print()
+        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Backups created:[/]")
+        for bak in fix_result.backup_paths:
+            try:
+                rel = bak.relative_to(root)
+            except ValueError:
+                rel = bak
+            console.print(f"    [{C_MUTED}]{rel}[/]")
+        console.print()
+        console.print(f"  [{C_MUTED}]To roll back: copy .bak files over the originals[/]")
+        console.print(f"  [{C_MUTED}]  e.g.  cp compose.yaml.bak compose.yaml[/]")
 
 
 # ── Ports ──────────────────────────────────────────────────────
