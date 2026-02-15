@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from composearr.formatters.sarif_formatter import format_sarif
 from composearr.models import FormatOptions, Severity
 from composearr.rules.base import get_all_rules
 
-# Color tokens
+# Color tokens (Beszel-inspired)
 C_TEAL = "#2dd4bf"
 C_MUTED = "#71717a"
 C_OK = "#22c55e"
@@ -28,10 +29,41 @@ C_ERR = "#ef4444"
 C_WARN = "#f59e0b"
 C_TEXT = "#fafafa"
 C_INFO = "#3b82f6"
+C_DIM = "#52525b"
 
 # Sentinel values
 _BACK = "__back__"
 _EXIT = "__exit__"
+
+# ── ASCII Art ──────────────────────────────────────────────────
+
+ROLL_SAFE_ART = (
+    f"[{C_TEAL}]"
+    "\n       .----------------------------------."
+    "\n       | Can't have compose issues        |"
+    "\n       | if you lint before deploy  *taps* |"
+    "\n       '---.------------------------------'"
+    "\n            |"
+    "\n         .-***-."
+    "\n        /  o o  \\"
+    "\n       |   <->   |    _"
+    "\n        \\  ---  /  __|_|"
+    "\n    ~~---'--^--'---~~"
+    f"\n[/]"
+)
+
+WHALE_ART = (
+    f"[{C_INFO}]"
+    "\n                    ##         ."
+    "\n              ## ## ##        =="
+    "\n           ## ## ## ## ##    ==="
+    '\n       /"""""""""""""""""\\___/ ==='
+    "\n      {                       /  ===-"
+    "\n       \\______ O           __/"
+    "\n         \\    \\         __/"
+    "\n          \\____\\_______/"
+    "\n[/]"
+)
 
 
 def _nav_choices() -> list[Choice]:
@@ -51,43 +83,42 @@ def _check_nav(value: str) -> str | None:
     return None
 
 
-def _resolve_path(console: Console, session: dict) -> str | None:
-    """Resolve stack path — reuse session path or prompt for new one.
+# ── Path Resolution (session-aware) ───────────────────────────
 
-    Returns the path string, or None if user chose back/exit.
-    Saves the resolved path to session for future reuse.
+
+def _resolve_path(console: Console, session: dict) -> str | None:
+    """Resolve stack path — silently reuses session path if available.
+
+    When the session already has a path, uses it directly (no prompt).
+    When no path exists, prompts for auto-detect or manual entry.
+    Use _change_path() to explicitly change the remembered path.
     """
     remembered = session.get("path")
 
     if remembered:
-        # Offer to reuse the remembered path
-        path_mode = inquirer.select(
-            message="Stack directory:",
-            choices=[
-                Choice(value="reuse", name=f"Use {remembered}"),
-                Choice(value="auto", name="Auto-detect again"),
-                Choice(value="manual", name="Enter path manually"),
-                *_nav_choices(),
-            ],
-            default="reuse",
-        ).execute()
-    else:
-        path_mode = inquirer.select(
-            message="How to find your stacks?",
-            choices=[
-                Choice(value="auto", name="Auto-detect Docker stacks"),
-                Choice(value="manual", name="Enter path manually"),
-                *_nav_choices(),
-            ],
-            default="auto",
-        ).execute()
+        # Silently reuse — the path is shown in settings dashboard / confirmed elsewhere
+        console.print(f"  [{C_MUTED}]Using:[/] [{C_TEAL}]{remembered}[/]")
+        return remembered
+
+    # First time — need to find the stacks
+    return _prompt_for_path(console, session)
+
+
+def _prompt_for_path(console: Console, session: dict) -> str | None:
+    """Prompt user to find their stacks (auto-detect or manual)."""
+    path_mode = inquirer.select(
+        message="How to find your stacks?",
+        choices=[
+            Choice(value="auto", name="Auto-detect Docker stacks"),
+            Choice(value="manual", name="Enter path manually"),
+            *_nav_choices(),
+        ],
+        default="auto",
+    ).execute()
 
     nav = _check_nav(path_mode)
     if nav:
         return None
-
-    if path_mode == "reuse":
-        return remembered
 
     if path_mode == "auto":
         from composearr.scanner.discovery import detect_stack_directory
@@ -113,7 +144,7 @@ def _resolve_path(console: Console, session: dict) -> str | None:
     else:
         path = inquirer.text(
             message="Stack directory:",
-            default=remembered or str(Path.cwd()),
+            default=session.get("path") or str(Path.cwd()),
             validate=lambda p: Path(p).is_dir() or "Directory not found",
         ).execute()
 
@@ -121,291 +152,389 @@ def _resolve_path(console: Console, session: dict) -> str | None:
     return path
 
 
+def _change_path(console: Console, session: dict) -> str | None:
+    """Explicitly change the remembered path."""
+    remembered = session.get("path")
+    path_mode = inquirer.select(
+        message="Change stack directory:",
+        choices=[
+            Choice(value="auto", name="Re-scan (auto-detect)"),
+            Choice(value="manual", name="Enter path manually"),
+            *_nav_choices(),
+        ],
+        default="auto",
+    ).execute()
+
+    nav = _check_nav(path_mode)
+    if nav:
+        return remembered  # Keep current path on back/exit
+
+    # Clear and re-resolve
+    old_path = session.pop("path", None)
+    result = _prompt_for_path(console, session)
+    if result is None:
+        # User cancelled — restore old path
+        if old_path:
+            session["path"] = old_path
+        return old_path
+    return result
+
+
+def _auto_resolve_path(console: Console, session: dict) -> str | None:
+    """Auto-resolve path silently for quick audit — no prompts if session has path."""
+    remembered = session.get("path")
+    if remembered:
+        return remembered
+
+    from composearr.scanner.discovery import detect_stack_directory
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    with Progress(
+        SpinnerColumn(style=C_TEAL),
+        TextColumn(f"[{C_MUTED}]Searching common locations\u2026[/]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        detected = detect_stack_directory()
+
+    if detected:
+        path = str(detected)
+        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Found stacks at[/] [{C_TEAL}]{path}[/]")
+        session["path"] = path
+        return path
+
+    # Fall back to manual prompt
+    return _resolve_path(console, session)
+
+
+# ── Main TUI Entry Point ──────────────────────────────────────
+
+
 def launch_tui() -> None:
     """Launch interactive TUI menu."""
     console = make_console()
-    # Session state persists across menu actions
     session: dict = {}
 
+    # Welcome screen with ASCII art
     console.print()
-    console.print(f"  [bold {C_TEAL}]\u25c6[/] [bold {C_TEXT}]ComposeArr[/]  [{C_MUTED}]v{__version__}[/]")
-    console.print(f"  [{C_MUTED}]Docker Compose hygiene linter[/]")
+    console.print(ROLL_SAFE_ART)
+    console.print()
+    console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
+    console.print(f"  [{C_MUTED}]Docker Compose Hygiene Linter[/]")
+    console.print()
 
     while True:
-        console.print()
         action = inquirer.select(
             message="What would you like to do?",
             choices=[
-                Choice(value="audit", name="Audit Docker stacks"),
-                Choice(value="fix", name="Fix issues interactively"),
-                Choice(value="ports", name="Port allocation table"),
-                Choice(value="rules", name="View available rules"),
-                Choice(value="explain", name="Explain a rule"),
-                Choice(value="config", name="View/validate config"),
-                Choice(value=_EXIT, name="\u2716 Exit"),
+                Choice(value="quick", name="\u26a1 Quick Audit (smart defaults)"),
+                Choice(value="audit", name="\u2699  Custom Audit (configure options)"),
+                Choice(value="fix", name="\U0001f527 Fix issues"),
+                Choice(value="ports", name="\U0001f4cb Port allocation table"),
+                Choice(value="rules", name="\U0001f4d6 Rules & Explain"),
+                Choice(value="config", name="\u2699  Config"),
+                Choice(value=_EXIT, name="\u2716  Exit"),
             ],
-            default="audit",
+            default="quick",
         ).execute()
 
         if action == _EXIT:
             console.print(f"\n  [{C_MUTED}]Goodbye![/]\n")
             break
-
+        elif action == "quick":
+            _tui_quick_audit(console, session)
         elif action == "audit":
-            _tui_audit(console, session)
-
+            _tui_custom_audit(console, session)
         elif action == "fix":
             _tui_fix(console, session)
-
         elif action == "ports":
             _tui_ports(console, session)
-
         elif action == "rules":
-            _tui_rules(console)
-
-        elif action == "explain":
-            _tui_explain(console)
-
+            _tui_rules_and_explain(console)
         elif action == "config":
             _tui_config(console, session)
 
 
-def _tui_audit(console: Console, session: dict | None = None) -> None:
-    """Interactive audit flow with back/exit at every step."""
-    session = session or {}
-
-    steps = [
-        "_step_path",
-        "_step_severity",
-        "_step_group_by",
-        "_step_rules_filter",
-        "_step_options",
-        "_step_format",
-        "_step_destination",
-    ]
-    step_fns = {
-        "_step_path": _step_path,
-        "_step_severity": _step_severity,
-        "_step_group_by": _step_group_by,
-        "_step_rules_filter": _step_rules_filter,
-        "_step_options": _step_options,
-        "_step_format": _step_format,
-        "_step_destination": _step_destination,
-    }
-
-    state: dict = {"_session": session}
-    idx = 0
-
-    while idx < len(steps):
-        step_name = steps[idx]
-        result = step_fns[step_name](console, state)
-
-        if result == "exit":
-            return
-        elif result == "back":
-            idx = max(0, idx - 1)
-            if idx == 0 and step_name == steps[0]:
-                return  # Back from first step = return to main menu
-        elif result == "skip":
-            idx += 1
-        else:
-            idx += 1
-
-    # All steps complete — run the audit
-    _run_audit(console, state)
+# ── Quick Audit ────────────────────────────────────────────────
 
 
-def _step_path(console: Console, state: dict) -> str:
-    """Step 1: Path selection (uses session memory)."""
-    session = state.get("_session", {})
-    path = _resolve_path(console, session)
+def _tui_quick_audit(console: Console, session: dict) -> None:
+    """One-click audit with smart defaults."""
+    path = _auto_resolve_path(console, session)
     if path is None:
-        return "back"
-    state["path"] = path
-    return "ok"
+        return
+
+    root = Path(path).resolve()
+    console.print()
+
+    reporter = RichProgressReporter(console)
+    result = run_audit(root, progress=reporter)
+    console.print()
+
+    fmt_opts = FormatOptions(
+        min_severity=Severity.ERROR,
+        verbose=False,
+        group_by="rule",
+    )
+
+    formatter = ConsoleFormatter(console)
+    formatter.render(result, str(root), options=fmt_opts)
+
+    # Post-audit actions
+    _post_audit_menu(console, session, result, root)
 
 
-def _step_severity(console: Console, state: dict) -> str:
-    """Step 2: Minimum severity."""
-    severity = inquirer.select(
-        message="Minimum severity to display:",
-        choices=[
-            Choice(value="error", name="Error only"),
-            Choice(value="warning", name="Warnings and above"),
-            Choice(value="info", name="Everything (info+)"),
-            *_nav_choices(),
-        ],
-        default="error",
+def _post_audit_menu(console: Console, session: dict, result, root: Path) -> None:
+    """After an audit completes, offer next actions."""
+    has_fixable = any(i.fix_available for i in result.all_issues)
+
+    choices = []
+    if has_fixable:
+        choices.append(Choice(value="fix", name="\U0001f527 Fix issues"))
+    choices.extend([
+        Choice(value="rerun", name="\u26a1 Re-run with different settings"),
+        Choice(value="export", name="\U0001f4be Export results (JSON/SARIF)"),
+        Choice(value="ports", name="\U0001f4cb View port allocation"),
+        Choice(value="menu", name="\u2190 Back to main menu"),
+    ])
+
+    console.print()
+    action = inquirer.select(
+        message="What next?",
+        choices=choices,
+        default="fix" if has_fixable else "menu",
     ).execute()
 
-    nav = _check_nav(severity)
-    if nav:
-        return nav
+    if action == "fix":
+        _tui_fix(console, session)
+    elif action == "rerun":
+        _tui_custom_audit(console, session)
+    elif action == "export":
+        _export_results(console, result, root)
+    elif action == "ports":
+        from composearr.commands.ports import collect_ports, render_port_table
+        all_ports = collect_ports(root)
+        render_port_table(all_ports, root, console)
 
-    state["severity"] = severity
-    return "ok"
 
-
-def _step_group_by(console: Console, state: dict) -> str:
-    """Step 3: Group by."""
-    group_by = inquirer.select(
-        message="Group issues by:",
+def _export_results(console: Console, result, root: Path) -> None:
+    """Export audit results to file."""
+    fmt = inquirer.select(
+        message="Export format:",
         choices=[
-            Choice(value="rule", name="Rule (default)"),
-            Choice(value="file", name="File"),
-            Choice(value="severity", name="Severity"),
-            *_nav_choices(),
-        ],
-        default="rule",
-    ).execute()
-
-    nav = _check_nav(group_by)
-    if nav:
-        return nav
-
-    state["group_by"] = group_by
-    return "ok"
-
-
-def _step_rules_filter(console: Console, state: dict) -> str:
-    """Step 4: Rule filtering."""
-    all_rules = get_all_rules()
-
-    filter_mode = inquirer.select(
-        message="Which rules to run?",
-        choices=[
-            Choice(value="all", name="All rules"),
-            Choice(value="select", name="Select specific rules"),
-            Choice(value="exclude", name="Exclude specific rules"),
-            *_nav_choices(),
-        ],
-        default="all",
-    ).execute()
-
-    nav = _check_nav(filter_mode)
-    if nav:
-        return nav
-
-    if filter_mode == "select":
-        rule_choices = [
-            Choice(value=r.id, name=f"{r.id} — {r.name}", enabled=True)
-            for r in sorted(all_rules, key=lambda x: x.id)
-        ]
-        selected = inquirer.checkbox(
-            message="Select rules to run (space to toggle):",
-            choices=rule_choices,
-        ).execute()
-        state["rule_ids"] = set(selected) if selected else None
-        state["ignore_ids"] = None
-    elif filter_mode == "exclude":
-        rule_choices = [
-            Choice(value=r.id, name=f"{r.id} — {r.name}", enabled=False)
-            for r in sorted(all_rules, key=lambda x: x.id)
-        ]
-        excluded = inquirer.checkbox(
-            message="Select rules to skip (space to toggle):",
-            choices=rule_choices,
-        ).execute()
-        state["ignore_ids"] = set(excluded) if excluded else None
-        state["rule_ids"] = None
-    else:
-        state["rule_ids"] = None
-        state["ignore_ids"] = None
-
-    return "ok"
-
-
-def _step_options(console: Console, state: dict) -> str:
-    """Step 5: Additional options (verbose, no-network)."""
-    options = inquirer.checkbox(
-        message="Additional options (space to toggle):",
-        choices=[
-            Choice(value="verbose", name="Verbose — show full file context for each issue", enabled=False),
-            Choice(value="no_network", name="No network — disable tag analysis lookups", enabled=False),
-            Choice(value=_BACK, name="\u2190 Back", enabled=False),
-            Choice(value=_EXIT, name="\u2716 Exit", enabled=False),
-        ],
-    ).execute()
-
-    if _EXIT in options:
-        return "exit"
-    if _BACK in options:
-        return "back"
-
-    state["verbose"] = "verbose" in options
-    state["no_network"] = "no_network" in options
-    return "ok"
-
-
-def _step_format(console: Console, state: dict) -> str:
-    """Step 6: Output format."""
-    output_format = inquirer.select(
-        message="Output format:",
-        choices=[
-            Choice(value="console", name="Console (rich terminal output)"),
-            Choice(value="json", name="JSON (machine-readable)"),
+            Choice(value="json", name="JSON"),
             Choice(value="sarif", name="SARIF (GitHub Advanced Security)"),
             Choice(value="github", name="GitHub Actions annotations"),
             *_nav_choices(),
         ],
-        default="console",
+        default="json",
     ).execute()
 
-    nav = _check_nav(output_format)
+    nav = _check_nav(fmt)
     if nav:
-        return nav
+        return
 
-    state["output_format"] = output_format
-    return "ok"
+    fmt_opts = FormatOptions(min_severity=Severity.INFO, verbose=False, group_by="rule")
 
+    if fmt == "json":
+        content = format_json(result, str(root), fmt_opts)
+    elif fmt == "sarif":
+        content = format_sarif(result, str(root), fmt_opts)
+    else:
+        content = format_github(result, str(root), fmt_opts)
 
-def _step_destination(console: Console, state: dict) -> str:
-    """Step 7: Output destination (non-console only)."""
-    state["save_to_file"] = False
-    state["print_to_screen"] = True
-    state["output_file"] = None
+    ext_map = {"json": "json", "sarif": "sarif", "github": "txt"}
+    ext = ext_map.get(fmt, "txt")
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    default_name = f"composearr-audit-{timestamp}.{ext}"
 
-    if state["output_format"] == "console":
-        return "skip"
-
-    destination = inquirer.select(
-        message="Output destination:",
-        choices=[
-            Choice(value="both", name="Save to file AND print to screen"),
-            Choice(value="file", name="Save to file only"),
-            Choice(value="screen", name="Print to screen only"),
-            *_nav_choices(),
-        ],
-        default="both",
+    filename = inquirer.text(
+        message="Filename:",
+        default=default_name,
     ).execute()
 
-    nav = _check_nav(destination)
-    if nav:
-        return nav
+    Path(filename).write_text(content, encoding="utf-8")
+    console.print(f"\n  [{C_OK}]\u2713[/] Saved to [{C_TEAL}]{filename}[/]")
 
-    state["save_to_file"] = destination in ("both", "file")
-    state["print_to_screen"] = destination in ("both", "screen")
 
-    if state["save_to_file"]:
-        ext_map = {"json": "json", "sarif": "sarif", "github": "txt"}
-        ext = ext_map.get(state["output_format"], "txt")
-        timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-        default_name = f"composearr-audit-{timestamp}.{ext}"
-        state["output_file"] = inquirer.text(
-            message="Output filename:",
-            default=default_name,
+# ── Custom Audit (Settings Dashboard) ─────────────────────────
+
+
+def _tui_custom_audit(console: Console, session: dict) -> None:
+    """Custom audit with a settings dashboard — see all options, change what you need."""
+
+    # Default audit settings
+    settings = {
+        "path": session.get("path"),
+        "severity": "error",
+        "group_by": "rule",
+        "format": "console",
+        "verbose": False,
+        "no_network": False,
+        "rule_ids": None,
+        "ignore_ids": None,
+    }
+
+    # Resolve path first (only if we don't have one)
+    if not settings["path"]:
+        path = _resolve_path(console, session)
+        if path is None:
+            return
+        settings["path"] = path
+
+    # Settings dashboard loop
+    while True:
+        console.print()
+        # Show current settings
+        path_display = settings["path"]
+        if len(path_display) > 50:
+            path_display = "..." + path_display[-47:]
+
+        rules_display = "all"
+        if settings["rule_ids"]:
+            rules_display = ", ".join(sorted(settings["rule_ids"]))
+        if settings["ignore_ids"]:
+            rules_display = f"all except {', '.join(sorted(settings['ignore_ids']))}"
+
+        opts = []
+        if settings["verbose"]:
+            opts.append("verbose")
+        if settings["no_network"]:
+            opts.append("no-network")
+        opts_display = ", ".join(opts) if opts else "none"
+
+        console.print(f"  [bold {C_TEXT}]Audit Settings[/]")
+        console.print(f"    [{C_MUTED}]Path:[/]     [{C_TEAL}]{path_display}[/]")
+        console.print(f"    [{C_MUTED}]Severity:[/] [{C_TEXT}]{settings['severity']}[/]")
+        console.print(f"    [{C_MUTED}]Group by:[/] [{C_TEXT}]{settings['group_by']}[/]")
+        console.print(f"    [{C_MUTED}]Format:[/]   [{C_TEXT}]{settings['format']}[/]")
+        console.print(f"    [{C_MUTED}]Options:[/]  [{C_TEXT}]{opts_display}[/]")
+        console.print(f"    [{C_MUTED}]Rules:[/]    [{C_TEXT}]{rules_display}[/]")
+        console.print()
+
+        action = inquirer.select(
+            message="",
+            choices=[
+                Choice(value="run", name=f"\u25b6 Run audit"),
+                Choice(value="path", name=f"  Change path"),
+                Choice(value="severity", name=f"  Change severity"),
+                Choice(value="group_by", name=f"  Change grouping"),
+                Choice(value="format", name=f"  Change format"),
+                Choice(value="options", name=f"  Toggle options (verbose, no-network)"),
+                Choice(value="rules", name=f"  Filter rules"),
+                *_nav_choices(),
+            ],
+            default="run",
         ).execute()
 
-    return "ok"
+        nav = _check_nav(action)
+        if nav:
+            return
+
+        if action == "run":
+            break
+
+        elif action == "path":
+            path = _change_path(console, session)
+            if path:
+                settings["path"] = path
+
+        elif action == "severity":
+            val = inquirer.select(
+                message="Minimum severity:",
+                choices=[
+                    Choice(value="error", name="Error only"),
+                    Choice(value="warning", name="Warnings and above"),
+                    Choice(value="info", name="Everything (info+)"),
+                ],
+                default=settings["severity"],
+            ).execute()
+            settings["severity"] = val
+
+        elif action == "group_by":
+            val = inquirer.select(
+                message="Group issues by:",
+                choices=[
+                    Choice(value="rule", name="Rule (default)"),
+                    Choice(value="file", name="File"),
+                    Choice(value="severity", name="Severity"),
+                ],
+                default=settings["group_by"],
+            ).execute()
+            settings["group_by"] = val
+
+        elif action == "format":
+            val = inquirer.select(
+                message="Output format:",
+                choices=[
+                    Choice(value="console", name="Console (rich terminal output)"),
+                    Choice(value="json", name="JSON (machine-readable)"),
+                    Choice(value="sarif", name="SARIF (GitHub Advanced Security)"),
+                    Choice(value="github", name="GitHub Actions annotations"),
+                ],
+                default=settings["format"],
+            ).execute()
+            settings["format"] = val
+
+        elif action == "options":
+            selected = inquirer.checkbox(
+                message="Toggle options (space to toggle):",
+                choices=[
+                    Choice(value="verbose", name="Verbose — full file context", enabled=settings["verbose"]),
+                    Choice(value="no_network", name="No network — skip tag lookups", enabled=settings["no_network"]),
+                ],
+            ).execute()
+            settings["verbose"] = "verbose" in selected
+            settings["no_network"] = "no_network" in selected
+
+        elif action == "rules":
+            filter_mode = inquirer.select(
+                message="Rule filter:",
+                choices=[
+                    Choice(value="all", name="All rules"),
+                    Choice(value="select", name="Select specific rules"),
+                    Choice(value="exclude", name="Exclude specific rules"),
+                ],
+                default="all",
+            ).execute()
+
+            all_rules = get_all_rules()
+            if filter_mode == "select":
+                rule_choices = [
+                    Choice(value=r.id, name=f"{r.id} \u2014 {r.name}", enabled=True)
+                    for r in sorted(all_rules, key=lambda x: x.id)
+                ]
+                selected = inquirer.checkbox(
+                    message="Select rules (space to toggle):",
+                    choices=rule_choices,
+                ).execute()
+                settings["rule_ids"] = set(selected) if selected else None
+                settings["ignore_ids"] = None
+            elif filter_mode == "exclude":
+                rule_choices = [
+                    Choice(value=r.id, name=f"{r.id} \u2014 {r.name}", enabled=False)
+                    for r in sorted(all_rules, key=lambda x: x.id)
+                ]
+                excluded = inquirer.checkbox(
+                    message="Select rules to skip (space to toggle):",
+                    choices=rule_choices,
+                ).execute()
+                settings["ignore_ids"] = set(excluded) if excluded else None
+                settings["rule_ids"] = None
+            else:
+                settings["rule_ids"] = None
+                settings["ignore_ids"] = None
+
+    # Run the audit with collected settings
+    _run_audit_with_settings(console, session, settings)
 
 
-def _run_audit(console: Console, state: dict) -> None:
-    """Execute the audit with collected TUI state."""
-    # Configure network
+def _run_audit_with_settings(console: Console, session: dict, settings: dict) -> None:
+    """Execute audit with the given settings dict."""
     from composearr.rules.CA0xx_images import set_network_enabled
-    set_network_enabled(not state.get("no_network", False))
+    set_network_enabled(not settings.get("no_network", False))
 
-    root = Path(state["path"]).resolve()
+    root = Path(settings["path"]).resolve()
     console.print()
 
     reporter = RichProgressReporter(console)
@@ -413,30 +542,28 @@ def _run_audit(console: Console, state: dict) -> None:
     console.print()
 
     # Apply rule filters
-    rule_ids = state.get("rule_ids")
-    ignore_ids = state.get("ignore_ids")
+    rule_ids = settings.get("rule_ids")
+    ignore_ids = settings.get("ignore_ids")
 
     if rule_ids:
         result.issues = [i for i in result.issues if i.rule_id in rule_ids]
         result.cross_file_issues = [i for i in result.cross_file_issues if i.rule_id in rule_ids]
-
     if ignore_ids:
         result.issues = [i for i in result.issues if i.rule_id not in ignore_ids]
         result.cross_file_issues = [i for i in result.cross_file_issues if i.rule_id not in ignore_ids]
 
-    # Format options
     fmt_opts = FormatOptions(
-        min_severity=Severity(state["severity"]),
-        verbose=state.get("verbose", False),
-        group_by=state.get("group_by", "rule"),
+        min_severity=Severity(settings["severity"]),
+        verbose=settings.get("verbose", False),
+        group_by=settings.get("group_by", "rule"),
     )
 
-    output_format = state["output_format"]
+    output_format = settings["format"]
 
-    # Render
     if output_format == "console":
         formatter = ConsoleFormatter(console)
         formatter.render(result, str(root), options=fmt_opts)
+        _post_audit_menu(console, session, result, root)
     else:
         if output_format == "json":
             content = format_json(result, str(root), fmt_opts)
@@ -445,165 +572,44 @@ def _run_audit(console: Console, state: dict) -> None:
         else:
             content = format_github(result, str(root), fmt_opts)
 
-        if state.get("print_to_screen", True):
+        # For non-console: save to file
+        ext_map = {"json": "json", "sarif": "sarif", "github": "txt"}
+        ext = ext_map.get(output_format, "txt")
+        timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+        default_name = f"composearr-audit-{timestamp}.{ext}"
+
+        dest = inquirer.select(
+            message="Output destination:",
+            choices=[
+                Choice(value="both", name="Save to file AND print to screen"),
+                Choice(value="file", name="Save to file only"),
+                Choice(value="screen", name="Print to screen only"),
+            ],
+            default="both",
+        ).execute()
+
+        if dest in ("both", "screen"):
             console.print(content)
 
-        if state.get("save_to_file") and state.get("output_file"):
-            Path(state["output_file"]).write_text(content, encoding="utf-8")
-            console.print(f"\n  [{C_OK}]\u2713[/] Saved to [{C_TEAL}]{state['output_file']}[/]")
-
-    # Summary
-    if result.error_count > 0:
-        console.print(f"\n  [{C_ERR}]Audit completed with {result.error_count} error(s)[/]")
-    else:
-        console.print(f"\n  [{C_OK}]Audit completed \u2014 no errors[/]")
+        if dest in ("both", "file"):
+            filename = inquirer.text(
+                message="Filename:",
+                default=default_name,
+            ).execute()
+            Path(filename).write_text(content, encoding="utf-8")
+            console.print(f"\n  [{C_OK}]\u2713[/] Saved to [{C_TEAL}]{filename}[/]")
 
 
-def _tui_ports(console: Console, session: dict | None = None) -> None:
-    """Interactive port allocation table."""
-    from composearr.commands.ports import collect_ports, render_port_table
-    session = session or {}
+# ── Fix Issues ─────────────────────────────────────────────────
 
-    # Path selection (uses session memory)
+
+def _tui_fix(console: Console, session: dict) -> None:
+    """Fix flow — scan, review, apply."""
     path = _resolve_path(console, session)
     if path is None:
         return
 
-    # Display options
-    view_mode = inquirer.select(
-        message="What to show?",
-        choices=[
-            Choice(value="all", name="All port mappings"),
-            Choice(value="conflicts", name="Conflicts only"),
-            *_nav_choices(),
-        ],
-        default="all",
-    ).execute()
-
-    nav = _check_nav(view_mode)
-    if nav:
-        return
-
-    root = Path(path).resolve()
-    all_ports = collect_ports(root)
-    render_port_table(
-        all_ports, root, console,
-        show_conflicts_only=(view_mode == "conflicts"),
-    )
-
-
-def _tui_rules(console: Console) -> None:
-    """Display rules in the TUI."""
-    from rich.table import Table
-    from rich import box
-    from rich.style import Style
-
-    all_rules = get_all_rules()
-    sev_colors = {
-        Severity.ERROR: C_ERR,
-        Severity.WARNING: C_WARN,
-        Severity.INFO: C_INFO,
-    }
-
-    table = Table(
-        box=box.SIMPLE_HEAD,
-        border_style=Style(color="#27272a"),
-        header_style=f"{C_MUTED}",
-        padding=(0, 2),
-        show_edge=False,
-    )
-    table.add_column("", width=2)
-    table.add_column("RULE", style=f"bold {C_TEXT}", no_wrap=True)
-    table.add_column("SEVERITY", no_wrap=True)
-    table.add_column("NAME", style=f"{C_TEXT}")
-    table.add_column("DESCRIPTION", style=C_MUTED)
-
-    for r in sorted(all_rules, key=lambda x: x.id):
-        color = sev_colors.get(r.severity, C_MUTED)
-        dot = f"[{color}]\u25cf[/]"
-        sev_label = f"[{color}]{r.severity.value}[/]"
-        table.add_row(dot, r.id, sev_label, r.name, r.description)
-
-    console.print()
-    console.print(f"  [{C_TEXT}]Available Rules[/]  [{C_MUTED}]{len(all_rules)} rules[/]")
-    console.print()
-    console.print(table)
-    console.print()
-    console.print(f"  [{C_MUTED}]More rules coming soon \u2014[/] [{C_TEAL}]github.com/coaxk/composearr[/]")
-
-
-def _tui_fix(console: Console, session: dict | None = None) -> None:
-    """Interactive fix flow — scan, review fixable issues, apply selected fixes."""
-    session = session or {}
-
-    # Step 1: Path selection (uses session memory)
-    path = _resolve_path(console, session)
-    if path is None:
-        return
-
-    # Step 2: Fix scope
-    fix_scope = inquirer.select(
-        message="Which fixes to review?",
-        choices=[
-            Choice(value="all", name="All fixable issues"),
-            Choice(value="rule", name="Filter by rule"),
-            *_nav_choices(),
-        ],
-        default="all",
-    ).execute()
-
-    nav = _check_nav(fix_scope)
-    if nav:
-        return
-
-    rule_filter: set[str] | None = None
-    if fix_scope == "rule":
-        all_rules = get_all_rules()
-        rule_choices = [
-            Choice(value=r.id, name=f"{r.id} \u2014 {r.name}", enabled=True)
-            for r in sorted(all_rules, key=lambda x: x.id)
-        ]
-        selected = inquirer.checkbox(
-            message="Select rules (space to toggle):",
-            choices=rule_choices,
-        ).execute()
-        if selected:
-            rule_filter = set(selected)
-
-    # Step 3: Dry run or apply
-    apply_mode = inquirer.select(
-        message="Fix mode:",
-        choices=[
-            Choice(value="review", name="Review fixes (show what would change)"),
-            Choice(value="apply", name="Apply fixes to files"),
-            *_nav_choices(),
-        ],
-        default="review",
-    ).execute()
-
-    nav = _check_nav(apply_mode)
-    if nav:
-        return
-
-    # Step 4: Backup preference (only when applying)
-    create_backup = False
-    if apply_mode == "apply":
-        backup = inquirer.select(
-            message="Create backups before modifying files?",
-            choices=[
-                Choice(value="yes", name="Yes \u2014 save .bak files"),
-                Choice(value="no", name="No \u2014 modify in place"),
-                *_nav_choices(),
-            ],
-            default="yes",
-        ).execute()
-
-        nav = _check_nav(backup)
-        if nav:
-            return
-        create_backup = backup == "yes"
-
-    # Run the scan
+    # Run scan
     root = Path(path).resolve()
     console.print()
 
@@ -613,8 +619,6 @@ def _tui_fix(console: Console, session: dict | None = None) -> None:
 
     # Collect fixable issues
     fixable = [i for i in result.all_issues if i.fix_available and i.suggested_fix]
-    if rule_filter:
-        fixable = [i for i in fixable if i.rule_id in rule_filter]
 
     if not fixable:
         console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]No fixable issues found[/]")
@@ -624,7 +628,6 @@ def _tui_fix(console: Console, session: dict | None = None) -> None:
     console.print()
 
     # Group by file for display
-    from collections import defaultdict
     by_file: dict[str, list] = defaultdict(list)
     for issue in fixable:
         by_file[issue.file_path].append(issue)
@@ -645,29 +648,28 @@ def _tui_fix(console: Console, session: dict | None = None) -> None:
             color = sev_colors.get(issue.severity, C_MUTED)
             svc = f" [bold {C_TEAL}]{issue.service}[/]" if issue.service else ""
             console.print(f"    [{color}]\u25cf[/] [{color}]{issue.rule_id}[/]  {issue.message}{svc}")
-            # Show fix preview (first line only in compact view)
             fix_preview = issue.suggested_fix.split("\n")[0]
             console.print(f"      [{C_OK}]\u2192[/] [{C_TEAL}]{fix_preview}[/]")
         console.print()
 
-    if apply_mode == "review":
-        console.print(f"  [{C_MUTED}]Review complete \u2014 no files modified[/]")
-        console.print(f"  [{C_MUTED}]Run again with 'Apply fixes' to modify files[/]")
-        return
-
-    # Confirm before applying
-    confirm = inquirer.confirm(
-        message=f"Apply {len(fixable)} fixes to {len(by_file)} files?",
-        default=False,
+    # Apply or not?
+    action = inquirer.select(
+        message="Apply fixes?",
+        choices=[
+            Choice(value="apply_backup", name="\u2713 Apply with backups (.bak files)"),
+            Choice(value="apply_no_backup", name="\u2713 Apply without backups"),
+            Choice(value="cancel", name="\u2716 Cancel \u2014 don't modify files"),
+        ],
+        default="apply_backup",
     ).execute()
 
-    if not confirm:
-        console.print(f"\n  [{C_MUTED}]Cancelled \u2014 no files modified[/]")
+    if action == "cancel":
+        console.print(f"\n  [{C_MUTED}]No files modified[/]")
         return
 
-    # Apply fixes
     from composearr.fixer import apply_fixes
-    applied, skipped, errors = apply_fixes(fixable, root, backup=create_backup)
+    backup = action == "apply_backup"
+    applied, skipped, errors = apply_fixes(fixable, root, backup=backup)
 
     console.print()
     if applied:
@@ -676,35 +678,117 @@ def _tui_fix(console: Console, session: dict | None = None) -> None:
         console.print(f"  [{C_WARN}]\u26a0[/] [{C_TEXT}]{skipped} fixes skipped (not auto-applicable)[/]")
     if errors:
         console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]{errors} fixes failed[/]")
-    if create_backup and applied:
+    if backup and applied:
         console.print(f"  [{C_MUTED}]Backup files saved with .bak extension[/]")
 
 
-def _tui_explain(console: Console) -> None:
-    """Interactive explain — pick a rule and show documentation."""
-    all_rules = sorted(get_all_rules(), key=lambda r: r.id)
+# ── Ports ──────────────────────────────────────────────────────
 
-    choices = [
-        Choice(value=r.id, name=f"{r.id}  {r.name} — {r.description}")
-        for r in all_rules
-    ]
-    choices.extend(_nav_choices())
 
-    rule_id = inquirer.select(
-        message="Which rule to explain?",
-        choices=choices,
+def _tui_ports(console: Console, session: dict) -> None:
+    """Port allocation table."""
+    from composearr.commands.ports import collect_ports, render_port_table
+
+    path = _resolve_path(console, session)
+    if path is None:
+        return
+
+    view_mode = inquirer.select(
+        message="What to show?",
+        choices=[
+            Choice(value="all", name="All port mappings"),
+            Choice(value="conflicts", name="Conflicts only"),
+            *_nav_choices(),
+        ],
+        default="all",
     ).execute()
 
-    nav = _check_nav(rule_id)
+    nav = _check_nav(view_mode)
     if nav:
         return
 
-    from composearr.commands.explain import render_explanation
-    render_explanation(rule_id, console)
+    root = Path(path).resolve()
+
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    with Progress(
+        SpinnerColumn(style=C_TEAL),
+        TextColumn(f"[{C_MUTED}]Scanning ports\u2026[/]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        all_ports = collect_ports(root)
+
+    render_port_table(
+        all_ports, root, console,
+        show_conflicts_only=(view_mode == "conflicts"),
+    )
+
+
+# ── Rules & Explain (combined — flatter) ──────────────────────
+
+
+def _tui_rules_and_explain(console: Console) -> None:
+    """View rules list, then optionally explain one."""
+    from rich.table import Table
+    from rich import box
+    from rich.style import Style
+
+    all_rules = sorted(get_all_rules(), key=lambda x: x.id)
+    sev_colors = {
+        Severity.ERROR: C_ERR,
+        Severity.WARNING: C_WARN,
+        Severity.INFO: C_INFO,
+    }
+
+    table = Table(
+        box=box.SIMPLE_HEAD,
+        border_style=Style(color="#27272a"),
+        header_style=f"{C_MUTED}",
+        padding=(0, 2),
+        show_edge=False,
+    )
+    table.add_column("", width=2)
+    table.add_column("RULE", style=f"bold {C_TEXT}", no_wrap=True)
+    table.add_column("SEVERITY", no_wrap=True)
+    table.add_column("NAME", style=f"{C_TEXT}")
+    table.add_column("DESCRIPTION", style=C_MUTED)
+
+    for r in all_rules:
+        color = sev_colors.get(r.severity, C_MUTED)
+        dot = f"[{color}]\u25cf[/]"
+        sev_label = f"[{color}]{r.severity.value}[/]"
+        table.add_row(dot, r.id, sev_label, r.name, r.description)
+
+    console.print()
+    console.print(f"  [{C_TEXT}]Available Rules[/]  [{C_MUTED}]{len(all_rules)} rules[/]")
+    console.print()
+    console.print(table)
+    console.print()
+
+    # Offer to explain a rule
+    choices = [
+        Choice(value=r.id, name=f"{r.id}  {r.name}")
+        for r in all_rules
+    ]
+    choices.append(Choice(value=_BACK, name="\u2190 Back to menu"))
+
+    rule_id = inquirer.select(
+        message="Explain a rule? (or go back)",
+        choices=choices,
+        default=_BACK,
+    ).execute()
+
+    if rule_id != _BACK:
+        from composearr.commands.explain import render_explanation
+        render_explanation(rule_id, console)
+
+
+# ── Config ─────────────────────────────────────────────────────
 
 
 def _tui_config(console: Console, session: dict) -> None:
-    """Interactive config view/validate."""
+    """Config view/validate."""
     action = inquirer.select(
         message="Config action:",
         choices=[
@@ -719,7 +803,6 @@ def _tui_config(console: Console, session: dict) -> None:
     if nav:
         return
 
-    # Resolve path for project config
     path_str = _resolve_path(console, session)
     if path_str is None:
         return

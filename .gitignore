@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# ComposeArr generated output
+composearr-audit-*.json
+composearr-audit-*.txt
+composearr-audit-*.sarif
+audit.json
+audit.sarif
+
+# Temporary work order files
+CC_INSTRUCTIONS.md
+CC_WORK_ORDER.md

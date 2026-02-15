@@ -41,6 +41,19 @@ C_OK = "#22c55e"
 C_BORDER = "#27272a"
 
 
+WHALE_ART = (
+    "[#3b82f6]"
+    "\n                    ##         ."
+    "\n              ## ## ##        =="
+    "\n           ## ## ## ## ##    ==="
+    '\n       /"""""""""""""""""\\___/ ==='
+    "\n      {                       /  ===-"
+    "\n       \\______ O           __/"
+    "\n         \\    \\         __/"
+    "\n          \\____\\_______/[/]"
+)
+
+
 def version_callback(value: bool) -> None:
     if value:
         console.print(f"composearr v{__version__}")
@@ -278,7 +291,19 @@ def ports(
         console.print(f"[{C_ERR}]Error:[/] {path} is not a directory")
         raise typer.Exit(code=2)
 
-    all_ports = collect_ports(root)
+    import sys as _sys
+    if _sys.stdout.isatty() and output_format == "console":
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        with Progress(
+            SpinnerColumn(style=C_TEAL),
+            TextColumn(f"[{C_MUTED}]Scanning ports\u2026[/]"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("", total=None)
+            all_ports = collect_ports(root)
+    else:
+        all_ports = collect_ports(root)
 
     if output_format == "json":
         content = format_ports_json(all_ports, root)
@@ -419,3 +444,14 @@ def explain(
             console.print(f"    [{C_TEAL}]{r.id}[/]  {r.name}")
         console.print()
         raise typer.Exit(code=1)
+
+
+@app.command(hidden=True)
+def whale() -> None:
+    """You found the Easter egg!"""
+    console.print()
+    console.print(WHALE_ART)
+    console.print()
+    console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
+    console.print(f"  [{C_MUTED}]Keeping your Docker stacks shipshape[/] \U0001f433")
+    console.print()
