@@ -39,9 +39,9 @@ composearr audit /path/to/stacks
 
 ## Features
 
-### 11 Lint Rules
+### 13 Lint Rules
 
-ComposeArr ships with 11 rules across 5 categories, each with actionable fix suggestions:
+ComposeArr ships with 13 rules across 5 categories, each with actionable fix suggestions:
 
 | ID | Name | Severity | Description |
 |----|------|----------|-------------|
@@ -52,6 +52,8 @@ ComposeArr ships with 11 rules across 5 categories, each with actionable fix sug
 | CA202 | no-fake-healthcheck | warning | Healthcheck always passes (`exit 0`, `true`, etc.) |
 | CA203 | require-restart-policy | warning | No restart policy set |
 | CA301 | port-conflict | error | Same host port used by multiple services (cross-file) |
+| CA302 | unreachable-dependency | error | Service depends_on a service it cannot reach via network |
+| CA303 | isolated-service-ports | warning | Service with `network_mode: none` exposes unreachable ports |
 | CA401 | puid-pgid-mismatch | error | PUID/PGID values differ across services (cross-file) |
 | CA402 | umask-inconsistent | warning | UMASK values differ across *arr services |
 | CA403 | missing-timezone | warning | TZ environment variable not set |
@@ -129,6 +131,7 @@ ComposeArr recognizes 63 Docker services out of the box -- including the entire 
 | `composearr audit [PATH]` | Scan compose files for issues |
 | `composearr fix [PATH]` | Apply auto-fixes to compose files |
 | `composearr ports [PATH]` | Show port allocation table |
+| `composearr topology [PATH]` | Show network topology and dependency reachability |
 | `composearr rules` | List all available rules |
 | `composearr explain <RULE>` | Show detailed rule documentation |
 | `composearr config [PATH]` | Validate and show configuration |
@@ -224,6 +227,7 @@ services:
 Unlike single-file linters, ComposeArr scans your **entire stack directory** and detects issues that span multiple compose files:
 
 - **Port conflicts** (CA301) -- two services in different files binding the same host port
+- **Unreachable dependencies** (CA302) -- service depends_on another it can't reach via network
 - **PUID/PGID mismatches** (CA401) -- inconsistent user IDs across your *arr services
 - **UMASK drift** (CA402) -- mismatched UMASK values breaking hardlinks
 - **Hardlink path issues** (CA601) -- *arr services without a unified `/data` mount
