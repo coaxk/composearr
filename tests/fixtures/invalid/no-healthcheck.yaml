@@ -1,0 +1,13 @@
+services:
+  web:
+    image: nginx:1.21
+    environment:
+      TZ: UTC
+
+  fake-health:
+    image: nginx:1.21
+    environment:
+      TZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 30s

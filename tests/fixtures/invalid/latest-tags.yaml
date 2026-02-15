@@ -1,0 +1,18 @@
+services:
+  app1:
+    image: nginx:latest
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+
+  app2:
+    image: redis
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+
+  app3:
+    image: ghcr.io/hotio/sonarr:nightly
+    restart: unless-stopped
+    environment:
+      TZ: UTC

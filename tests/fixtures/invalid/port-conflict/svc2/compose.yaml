@@ -1,0 +1,8 @@
+services:
+  radarr:
+    image: lscr.io/linuxserver/radarr:5.2.6
+    ports:
+      - "8080:7878"
+    restart: unless-stopped
+    environment:
+      TZ: UTC
