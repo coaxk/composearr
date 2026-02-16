@@ -93,6 +93,7 @@ def audit(
     output_format: str = typer.Option("console", "--format", "-f", help="Output format: console, json, github, sarif"),
     no_network: bool = typer.Option(False, "--no-network", help="Disable network features (tag analysis)"),
     output: str = typer.Option(None, "--output", "-o", help="Output file path (auto-named for non-console formats)"),
+    explain: bool = typer.Option(False, "--explain", "-e", help="Show detailed explanations for each triggered rule"),
 ) -> None:
     """Scan Docker Compose files for issues."""
     if path is None:
@@ -165,6 +166,16 @@ def audit(
         formatter = ConsoleFormatter(console)
         formatter.render(result, str(root), options=fmt_opts)
 
+        # Show detailed explanations for triggered rules
+        if explain:
+            from composearr.commands.explain import render_explanation
+            triggered_rules = sorted({i.rule_id for i in result.all_issues})
+            if triggered_rules:
+                console.print()
+                console.print(f"  [bold {C_TEXT}]Detailed Explanations[/]")
+                for rule_id in triggered_rules:
+                    render_explanation(rule_id, console)
+
     if content is not None:
         # Print to stdout
         print(content)
@@ -185,12 +196,16 @@ def audit(
             err_console = Console(file=_sys.stderr, highlight=False)
             err_console.print(f"\n  [{C_OK}]\u2713[/] Saved to [{C_TEAL}]{out_path}[/]")
 
-    # Save to audit history
+    # Save to audit history and submit to leaderboard
     try:
         from composearr.history import AuditHistory
         from composearr.scoring import calculate_stack_score
 
-        score = calculate_stack_score(result.all_issues, result.total_services)
+        score = calculate_stack_score(
+            result.all_issues,
+            result.total_services,
+            file_count=len(result.compose_files),
+        )
         history = AuditHistory(root)
         history.save_audit(
             issues=result.all_issues,
@@ -199,6 +214,20 @@ def audit(
             services_scanned=result.total_services,
             duration_seconds=result.timing.total_seconds,
         )
+
+        # Leaderboard submission
+        try:
+            from composearr.leaderboard import Leaderboard
+            Leaderboard().submit_score(score)
+        except Exception:
+            pass
+
+        # Tier warnings
+        try:
+            from composearr.warnings import show_tier_warning
+            show_tier_warning(console, result.total_services)
+        except Exception:
+            pass
     except Exception:
         pass  # History saving should never break the audit
 
@@ -212,6 +241,7 @@ def fix(
     path: str = typer.Argument(None, help="Path to scan (auto-detects if omitted)"),
     rule: str = typer.Option(None, "--rule", "-r", help="Only fix specific rules (comma-separated)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be fixed without applying"),
+    preview: bool = typer.Option(False, "--preview", "-p", help="Show colored diff preview of changes before applying"),
     no_backup: bool = typer.Option(False, "--no-backup", help="Skip creating .bak backup files"),
     no_network: bool = typer.Option(False, "--no-network", help="Disable network features (tag analysis)"),
 ) -> None:
@@ -272,6 +302,28 @@ def fix(
 
     if dry_run:
         console.print(f"  [{C_MUTED}]Dry run \u2014 no files modified[/]")
+        raise typer.Exit()
+
+    if preview:
+        from composearr.fixer import preview_fixes
+        from composearr.diff import DiffGenerator
+
+        previews = preview_fixes(fixable)
+        differ = DiffGenerator()
+        for pv in previews:
+            try:
+                rel = str(pv.file_path.relative_to(root))
+            except ValueError:
+                rel = str(pv.file_path)
+            differ.display_diff(console, pv.original, pv.modified, rel,
+                                description=f"{pv.fix_count} fix{'es' if pv.fix_count != 1 else ''}")
+            rule_ids = sorted({i.rule_id for i in pv.issues})
+            console.print(f"  [{C_MUTED}]Rules: {', '.join(rule_ids)}[/]")
+            console.print()
+
+        if not previews:
+            console.print(f"  [{C_MUTED}]No previewable changes[/]")
+        console.print(f"  [{C_MUTED}]Preview only \u2014 no files modified. Remove --preview to apply.[/]")
         raise typer.Exit()
 
     from composearr.fixer import apply_fixes
@@ -932,6 +984,155 @@ def batch(
             console.print(f"\n  [dim]Add --fix --yes to auto-fix all issues[/]")
 
     raise typer.Exit(result.exit_code)
+
+
+@app.command(name="help")
+def help_cmd(
+    command: str = typer.Argument(None, help="Specific command to explain"),
+) -> None:
+    """Show all available commands with descriptions."""
+    from rich.panel import Panel
+
+    COMMANDS = {
+        "Core": [
+            ("audit", "Analyze compose files for issues", "composearr audit [PATH] [OPTIONS]", [
+                ("composearr audit", "Audit current directory"),
+                ("composearr audit ~/docker", "Audit specific directory"),
+                ("composearr audit --severity warning", "Show warnings and errors"),
+                ("composearr audit --format json", "Output as JSON"),
+                ("composearr audit --group-by file", "Group by file"),
+                ("composearr audit --verbose", "Show full file context"),
+            ]),
+            ("fix", "Auto-fix detected issues (creates backups)", "composearr fix [PATH] [OPTIONS]", [
+                ("composearr fix", "Fix with interactive preview"),
+                ("composearr fix --yes", "Apply all fixes without prompts"),
+                ("composearr fix --rule CA001,CA501", "Fix specific rules only"),
+                ("composearr fix --dry-run", "Preview without applying"),
+            ]),
+            ("(no args)", "Launch interactive TUI", "composearr", [
+                ("composearr", "Launch the full interactive menu"),
+            ]),
+        ],
+        "Analysis": [
+            ("ports", "Show port allocation table and conflicts", "composearr ports [PATH]", [
+                ("composearr ports", "Show all port mappings"),
+            ]),
+            ("topology", "Display network topology between services", "composearr topology [PATH]", [
+                ("composearr topology", "Show network connections"),
+            ]),
+            ("history", "View audit history and score trends", "composearr history [PATH]", [
+                ("composearr history", "Show recent audit history"),
+            ]),
+            ("freshness", "Check for newer image versions", "composearr freshness [PATH]", [
+                ("composearr freshness", "Check all images for updates"),
+            ]),
+            ("orphanage", "Find orphaned Docker resources", "composearr orphanage", [
+                ("composearr orphanage", "List unused volumes, networks, images"),
+            ]),
+            ("runtime", "Compare compose vs running containers", "composearr runtime [PATH]", [
+                ("composearr runtime", "Show drift between compose and running state"),
+            ]),
+        ],
+        "Utility": [
+            ("watch", "Monitor files and re-audit on changes", "composearr watch [PATH]", [
+                ("composearr watch", "Watch current directory"),
+                ("composearr watch ~/docker", "Watch specific directory"),
+            ]),
+            ("init", "Generate compose file from template", "composearr init [TEMPLATE]", [
+                ("composearr init", "Interactive template selection"),
+                ("composearr init sonarr", "Generate Sonarr compose"),
+            ]),
+            ("batch", "Batch operations for CI/CD", "composearr batch [PATH] [OPTIONS]", [
+                ("composearr batch --fix --yes", "Fix all issues non-interactively"),
+                ("composearr batch --fix --yes --severity error", "Fix only errors"),
+                ("composearr batch --fix --yes --json", "JSON output for CI"),
+            ]),
+            ("config", "Interactive configuration wizard", "composearr config", [
+                ("composearr config", "Create or edit .composearr.yml"),
+            ]),
+        ],
+        "Reference": [
+            ("rules", "List all 30 lint rules", "composearr rules", [
+                ("composearr rules", "Show all rules with severity"),
+            ]),
+            ("explain", "Explain a specific rule in detail", "composearr explain <RULE>", [
+                ("composearr explain CA001", "Explain the unpinned image tag rule"),
+                ("composearr explain CA201", "Explain the healthcheck rule"),
+            ]),
+            ("help", "Show this command reference", "composearr help [COMMAND]", [
+                ("composearr help", "Show all commands"),
+                ("composearr help audit", "Detailed help for audit"),
+            ]),
+        ],
+    }
+
+    CATEGORY_ICONS = {
+        "Core": "Core Commands",
+        "Analysis": "Analysis Commands",
+        "Utility": "Utility Commands",
+        "Reference": "Reference Commands",
+    }
+
+    # Detailed help for a specific command
+    if command:
+        found = False
+        for category, cmds in COMMANDS.items():
+            for cmd_name, desc, usage, examples in cmds:
+                if cmd_name == command:
+                    found = True
+                    console.print(Panel(
+                        f"[bold {C_TEAL}]{command.upper()}[/]\n\n{desc}",
+                        border_style=C_TEAL,
+                    ))
+                    console.print(f"\n  [bold]Usage:[/]  [{C_TEAL}]{usage}[/]\n")
+                    if examples:
+                        console.print("  [bold]Examples:[/]\n")
+                        for ex_cmd, ex_desc in examples:
+                            console.print(f"    [{C_TEAL}]{ex_cmd}[/]")
+                            console.print(f"    [{C_MUTED}]{ex_desc}[/]\n")
+                    console.print(f"  [{C_MUTED}]Or try: composearr {command} --help[/]\n")
+                    break
+            if found:
+                break
+        if not found:
+            console.print(f"  [{C_WARN}]No detailed help for '{command}'[/]")
+            console.print(f"  Try: [{C_TEAL}]composearr {command} --help[/]")
+        raise typer.Exit()
+
+    # Full command index
+    console.print(Panel(
+        f"[bold {C_TEAL}]ComposeArr Command Reference[/]\n\n"
+        f"[{C_MUTED}]Run 'composearr help <command>' for detailed usage[/]",
+        border_style=C_TEAL,
+    ))
+
+    for category, cmds in COMMANDS.items():
+        label = CATEGORY_ICONS.get(category, category)
+        console.print(f"\n  [bold]{label}[/]\n")
+
+        cmd_table = Table(show_header=False, box=None, padding=(0, 2))
+        cmd_table.add_column("Command", style=C_TEAL, width=20)
+        cmd_table.add_column("Description")
+
+        for cmd_name, desc, _usage, _examples in cmds:
+            cmd_table.add_row(cmd_name, desc)
+
+        console.print(cmd_table)
+
+    console.print(f"\n  [bold]Quick Start[/]\n")
+    console.print(f"    [{C_TEAL}]composearr[/]          [{C_MUTED}]Launch interactive TUI[/]")
+    console.print(f"    [{C_TEAL}]composearr audit[/]    [{C_MUTED}]Scan your stack[/]")
+    console.print(f"    [{C_TEAL}]composearr fix[/]      [{C_MUTED}]Auto-fix issues[/]")
+    console.print(f"    [{C_TEAL}]composearr watch[/]    [{C_MUTED}]Monitor and re-audit[/]")
+    console.print()
+
+    console.print(Panel(
+        f"[{C_MUTED}]For detailed help:[/]  [{C_TEAL}]composearr help <command>[/]\n"
+        f"[{C_MUTED}]Or use the flag:[/]    [{C_TEAL}]composearr audit --help[/]",
+        border_style=C_MUTED,
+    ))
+
+    raise typer.Exit()
 
 
 @app.command(hidden=True)

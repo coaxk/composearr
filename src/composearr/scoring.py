@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 from composearr.models import LintIssue, Severity
 
@@ -28,6 +29,79 @@ def _categorize(rule_id: str) -> str:
     return _CATEGORY_MAP.get(prefix, "reliability")
 
 
+class StackTier(Enum):
+    """Stack complexity tiers — power levels ascending."""
+    STARTER = "STARTER"           # 1-5 services
+    HOMELAB = "HOMELAB"           # 6-15 services
+    ENTHUSIAST = "ENTHUSIAST"     # 16-30 services
+    POWER_USER = "POWER_USER"     # 31-60 services
+    ENTERPRISE = "ENTERPRISE"     # 61-100 services
+    DATACENTER = "DATACENTER"     # 101-200 services
+    MECHA_NECKBEARD = "MECHA_NECKBEARD"  # 201+ services
+
+
+TIER_CONFIG = {
+    StackTier.STARTER: {
+        "range": (1, 5),
+        "emoji": "\U0001f331",
+        "multiplier": 1.0,
+        "description": "Learning the ropes",
+        "power_level": "Krillin",
+    },
+    StackTier.HOMELAB: {
+        "range": (6, 15),
+        "emoji": "\U0001f3e0",
+        "multiplier": 1.1,
+        "description": "Typical homelab",
+        "power_level": "Yamcha",
+    },
+    StackTier.ENTHUSIAST: {
+        "range": (16, 30),
+        "emoji": "\u26a1",
+        "multiplier": 1.3,
+        "description": "Serious homelabber",
+        "power_level": "Piccolo",
+    },
+    StackTier.POWER_USER: {
+        "range": (31, 60),
+        "emoji": "\U0001f4aa",
+        "multiplier": 1.5,
+        "description": "Advanced infrastructure",
+        "power_level": "Vegeta",
+    },
+    StackTier.ENTERPRISE: {
+        "range": (61, 100),
+        "emoji": "\U0001f3e2",
+        "multiplier": 1.7,
+        "description": "Production-grade",
+        "power_level": "Goku",
+    },
+    StackTier.DATACENTER: {
+        "range": (101, 200),
+        "emoji": "\U0001f3ed",
+        "multiplier": 2.0,
+        "description": "Absolute madlad territory",
+        "power_level": "Super Saiyan",
+    },
+    StackTier.MECHA_NECKBEARD: {
+        "range": (201, float("inf")),
+        "emoji": "\U0001f916",
+        "multiplier": 3.0,
+        "description": "THE FINAL BOSS \u2014 Are you even human?",
+        "power_level": "Ultra Instinct",
+    },
+}
+
+
+def get_stack_tier(service_count: int) -> StackTier:
+    """Get tier based on service count."""
+    for tier, config in TIER_CONFIG.items():
+        min_svc, max_svc = config["range"]
+        if min_svc <= service_count <= max_svc:
+            return tier
+    return StackTier.MECHA_NECKBEARD
+
+
 @dataclass
 class ScoreBreakdown:
     """Score breakdown by category."""
@@ -50,7 +124,7 @@ class ScoreBreakdown:
 
 @dataclass
 class StackScore:
-    """Complete stack score with grade and breakdown."""
+    """Complete stack score with grade, breakdown, and tier weighting."""
 
     overall: int
     grade: str
@@ -59,6 +133,41 @@ class StackScore:
     warning_count: int = 0
     info_count: int = 0
     total_services: int = 0
+    # Sprint 7: tier weighting
+    tier: StackTier = StackTier.STARTER
+    tier_multiplier: float = 1.0
+    weighted_score: int = 0
+    file_count: int = 0
+
+    def get_display_grade(self) -> str:
+        """Get display grade with tier emoji."""
+        emoji = TIER_CONFIG[self.tier]["emoji"]
+        if self.tier == StackTier.MECHA_NECKBEARD and self.is_legendary():
+            return f"{emoji} MECHA NECKBEARD LEGENDARY"
+        if self.is_legendary():
+            return f"{emoji} LEGENDARY"
+        return f"{emoji} {self.grade}"
+
+    def is_legendary(self) -> bool:
+        """Check legendary status: perfect score, 16+ services, zero errors."""
+        return (
+            self.overall >= 100
+            and self.total_services >= 16
+            and self.error_count == 0
+        )
+
+    def approaching_next_tier(self) -> tuple[bool, StackTier | None, int]:
+        """Check if approaching next tier (within 10 services)."""
+        tiers = list(StackTier)
+        current_idx = tiers.index(self.tier)
+        if current_idx >= len(tiers) - 1:
+            return False, None, 0
+        next_tier = tiers[current_idx + 1]
+        next_min = TIER_CONFIG[next_tier]["range"][0]
+        services_needed = next_min - self.total_services
+        if 0 < services_needed <= 10:
+            return True, next_tier, services_needed
+        return False, None, 0
 
 
 def score_to_grade(score: int) -> str:
@@ -117,6 +226,7 @@ def _category_score(issues: list[LintIssue], total_services: int) -> int:
 def calculate_stack_score(
     issues: list[LintIssue],
     total_services: int = 0,
+    file_count: int = 0,
 ) -> StackScore:
     """Calculate the stack health score from audit issues.
 
@@ -157,6 +267,10 @@ def calculate_stack_score(
 
     grade = score_to_grade(overall)
 
+    tier = get_stack_tier(total_services)
+    tier_multiplier = TIER_CONFIG[tier]["multiplier"]
+    weighted_score = int(overall * tier_multiplier)
+
     return StackScore(
         overall=overall,
         grade=grade,
@@ -165,4 +279,8 @@ def calculate_stack_score(
         warning_count=warning_count,
         info_count=info_count,
         total_services=total_services,
+        tier=tier,
+        tier_multiplier=tier_multiplier,
+        weighted_score=weighted_score,
+        file_count=file_count,
     )

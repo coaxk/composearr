@@ -242,10 +242,18 @@ class ConsoleFormatter:
     # ── Stack Health Score ─────────────────────────────────────
 
     def _score_section(self, result: ScanResult, root_path: str = ".") -> None:
-        """Display the stack health score with category breakdown and trend."""
-        from composearr.scoring import calculate_stack_score
+        """Display the stack health score with tier, weighted score, and trend."""
+        from composearr.scoring import (
+            TIER_CONFIG,
+            StackTier,
+            calculate_stack_score,
+        )
 
-        score = calculate_stack_score(result.all_issues, result.total_services)
+        score = calculate_stack_score(
+            result.all_issues,
+            result.total_services,
+            file_count=len(result.compose_files),
+        )
 
         grade_colors = {
             "A+": C_OK, "A": C_OK, "A-": C_OK,
@@ -260,7 +268,52 @@ class ConsoleFormatter:
             filled = max(0, min(15, int(val / 100 * 15)))
             return "\u2588" * filled + "\u2591" * (15 - filled)
 
-        self.console.print(f"  [bold {grade_color}]Stack Health Score: {score.grade}[/]  {_muted(f'{score.overall}/100')}")
+        # Tier info
+        tier_cfg = TIER_CONFIG[score.tier]
+        tier_emoji = tier_cfg["emoji"]
+        tier_desc = tier_cfg["description"]
+        power_level = tier_cfg["power_level"]
+
+        # MECHA NECKBEARD special display
+        if score.tier == StackTier.MECHA_NECKBEARD:
+            if score.is_legendary():
+                self.console.print(f"  [bold bright_magenta]{tier_emoji} MECHA NECKBEARD LEGENDARY {tier_emoji}[/]")
+            else:
+                self.console.print(f"  [bold bright_magenta]{tier_emoji} {score.grade} - FINAL BOSS[/]  {_muted(f'{score.overall}/100')}")
+
+            # Boss health bar
+            health_bar = "\u2588" * 20
+            self.console.print(f"  [bold bright_magenta]Boss Health Bar:[/]")
+            self.console.print(
+                f"  {tier_emoji} MECHA NECKBEARD [{health_bar}] "
+                f"{score.total_services}/{score.total_services}"
+            )
+            status_text = "LEGENDARY" if score.is_legendary() else "ACTIVE"
+            self.console.print(f"  {_muted(f'Status: {status_text}')}")
+            self.console.print(f"  {_muted('Threat Level: MAXIMUM')}")
+        elif score.is_legendary():
+            self.console.print(f"  [bold {C_OK}]{score.get_display_grade()}[/]  {_muted(f'{score.overall}/100')}")
+        else:
+            self.console.print(f"  [bold {grade_color}]Stack Health Score: {score.get_display_grade()}[/]  {_muted(f'{score.overall}/100')}")
+
+        # Tier and weighted score
+        self.console.print(
+            f"  {_muted('Tier:')} {tier_emoji} {score.tier.value} {_muted(f'- {tier_desc}')}"
+            f"  {_muted(f'Power Level: {power_level}')}"
+        )
+        self.console.print(
+            f"  {_muted('Base:')} {score.overall}/100  "
+            f"{_muted('Weighted:')} {score.weighted_score} {_muted(f'(x{score.tier_multiplier})')}"
+        )
+
+        # Approaching next tier warning
+        approaching, next_tier, needed = score.approaching_next_tier()
+        if approaching and next_tier is not None:
+            next_cfg = TIER_CONFIG[next_tier]
+            self.console.print(
+                f"  [{C_WARN}]{next_cfg['emoji']} {needed} more services to reach "
+                f"{next_tier.value} tier![/]"
+            )
 
         # Show sparkline and trend if history exists
         try:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -49,6 +50,69 @@ def verify_yaml_file(path: Path) -> tuple[bool, str]:
         return True, ""
     except Exception as e:
         return False, str(e)
+
+
+@dataclass
+class FilePreview:
+    """Preview of changes for a single file."""
+
+    file_path: Path
+    original: str
+    modified: str
+    issues: list[LintIssue]
+    fix_count: int
+
+
+def preview_fixes(issues: list[LintIssue]) -> list[FilePreview]:
+    """Generate previews of what fixes would change, without writing anything.
+
+    Returns a list of FilePreview objects with before/after content.
+    """
+    from io import StringIO
+
+    by_file: dict[str, list[LintIssue]] = defaultdict(list)
+    for issue in issues:
+        if issue.fix_available and issue.suggested_fix:
+            by_file[issue.file_path].append(issue)
+
+    previews: list[FilePreview] = []
+
+    for file_path, file_issues in by_file.items():
+        path = Path(file_path)
+        if not path.is_file():
+            continue
+
+        try:
+            original = path.read_text(encoding="utf-8")
+            data = yaml.load(original)
+
+            if data is None or "services" not in data:
+                continue
+
+            fix_count = 0
+            for issue in file_issues:
+                if _apply_single_fix(data, issue):
+                    fix_count += 1
+
+            if fix_count > 0:
+                buf = StringIO()
+                yaml.dump(data, buf)
+                modified = buf.getvalue()
+
+                previews.append(FilePreview(
+                    file_path=path,
+                    original=original,
+                    modified=modified,
+                    issues=file_issues,
+                    fix_count=fix_count,
+                ))
+
+            # Re-load original data to undo in-memory changes
+            # (yaml.load mutates data in-place, we need a fresh copy for the actual apply)
+        except Exception:
+            continue
+
+    return previews
 
 
 def apply_fixes(

@@ -735,6 +735,7 @@ def launch_tui() -> None:
         console.print(f"  [{C_MUTED}]Scaffold       \u2014 Generate best-practice compose files from templates[/]")
         console.print(f"  [{C_MUTED}]Batch Fix      \u2014 CI/CD friendly auto-fix across all compose files[/]")
         console.print(f"  [{C_MUTED}]Config         \u2014 Customize rule severity, ignored paths, and trusted registries[/]")
+        console.print(f"  [{C_MUTED}]Help           \u2014 Complete command reference and quick start guide[/]")
         console.print()
 
         action = inquirer.select(
@@ -755,17 +756,35 @@ def launch_tui() -> None:
                 Choice(value="scaffold", name="\u2728 Scaffold (generate compose)"),
                 Choice(value="batch", name="\u26a1 Batch Fix (CI/CD)"),
                 Choice(value="config", name="\u2699  Config"),
+                Choice(value="help", name="\u2753 Help (command reference)"),
                 Choice(value=_EXIT, name="\u2716  Exit"),
             ],
             default="quick",
         ).execute()
 
         if action == _EXIT:
+            # Show closing credits (Hall of Fame) if legends exist
+            try:
+                from composearr.credits import show_closing_credits
+                show_closing_credits(console)
+            except Exception:
+                pass
+
             whale = _load_whale_art(console)
             console.print()
             console.print(whale)
             console.print()
-            console.print(f"  [{C_MUTED}]Remember: ComposeArr cares aggressively about your YAMLs. Even when you don\u2019t.[/]\n")
+
+            # Alternate exit taglines
+            import random
+            taglines = [
+                "Remember: ComposeArr cares aggressively about your YAMLs. Even when you don\u2019t.",
+                "Do you even YAML?",
+                "Caring aggressively about your YAMLs since 2026.",
+                "Your containers called. They want better compose files.",
+                "May your healthchecks always pass and your ports never conflict.",
+            ]
+            console.print(f"  [{C_MUTED}]{random.choice(taglines)}[/]\n")
             break
         elif action == "quick":
             _tui_quick_audit(console, session)
@@ -797,6 +816,81 @@ def launch_tui() -> None:
             _tui_batch(console, session)
         elif action == "config":
             _tui_config(console, session)
+        elif action == "help":
+            _tui_help(console)
+
+
+# ── Help ──────────────────────────────────────────────────────
+
+
+def _tui_help(console: Console) -> None:
+    """Show command reference in TUI."""
+    from rich.panel import Panel
+    from rich.table import Table
+
+    _section_header(console, "Command Reference", "All available CLI and TUI commands")
+
+    sections = {
+        "Core Commands": [
+            ("composearr", "Launch interactive TUI (this menu)"),
+            ("composearr audit [PATH]", "Analyze compose files for issues"),
+            ("composearr fix [PATH]", "Auto-fix detected issues (creates backups)"),
+        ],
+        "Analysis Commands": [
+            ("composearr ports [PATH]", "Show port allocation table and conflicts"),
+            ("composearr topology [PATH]", "Display network topology"),
+            ("composearr history [PATH]", "View audit history and score trends"),
+            ("composearr freshness [PATH]", "Check for newer image versions"),
+            ("composearr orphanage", "Find orphaned Docker resources"),
+            ("composearr runtime [PATH]", "Compare compose vs running containers"),
+        ],
+        "Utility Commands": [
+            ("composearr watch [PATH]", "Monitor files and re-audit on changes"),
+            ("composearr init [TEMPLATE]", "Generate compose file from template"),
+            ("composearr batch --fix --yes", "Batch operations for CI/CD"),
+            ("composearr config", "Interactive configuration wizard"),
+        ],
+        "Reference Commands": [
+            ("composearr rules", "List all 30 lint rules"),
+            ("composearr explain <RULE>", "Explain a specific rule in detail"),
+            ("composearr help [COMMAND]", "Show command reference"),
+        ],
+    }
+
+    for section_name, commands in sections.items():
+        console.print(f"  [bold]{section_name}[/]\n")
+        tbl = Table(show_header=False, box=None, padding=(0, 2))
+        tbl.add_column("Command", style=C_TEAL, width=32)
+        tbl.add_column("Description")
+        for cmd, desc in commands:
+            tbl.add_row(cmd, desc)
+        console.print(tbl)
+        console.print()
+
+    console.print(f"  [bold]Common Options[/]\n")
+    opts = Table(show_header=False, box=None, padding=(0, 2))
+    opts.add_column("Flag", style=C_TEAL, width=32)
+    opts.add_column("Description")
+    opts.add_row("--severity error|warning|info", "Filter by minimum severity")
+    opts.add_row("--format console|json|sarif", "Output format (json/sarif for CI)")
+    opts.add_row("--group-by rule|file", "Group issues by rule or file")
+    opts.add_row("--verbose", "Show full file context for each issue")
+    opts.add_row("--yes", "Skip confirmation prompts")
+    opts.add_row("--dry-run", "Preview without applying changes")
+    console.print(opts)
+    console.print()
+
+    console.print(f"  [{C_MUTED}]Tip: From the CLI, run 'composearr help <command>' for detailed examples[/]")
+    console.print()
+
+    try:
+        inquirer.select(
+            message="",
+            choices=[Choice(value=_BACK, name="\u2190 Back to menu")],
+            default=_BACK,
+        ).execute()
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 # ── Watch Mode ─────────────────────────────────────────────────
@@ -1192,13 +1286,17 @@ def _tui_freshness(console: Console, session: dict) -> None:
 # ── History Saving Helper ──────────────────────────────────────
 
 
-def _save_audit_history(result, root: Path) -> None:
-    """Save audit results to history (silently ignores errors)."""
+def _save_audit_history(result, root: Path, console: Console | None = None) -> None:
+    """Save audit results to history, submit to leaderboard, show tier warnings."""
     try:
         from composearr.history import AuditHistory
         from composearr.scoring import calculate_stack_score
 
-        score = calculate_stack_score(result.all_issues, result.total_services)
+        score = calculate_stack_score(
+            result.all_issues,
+            result.total_services,
+            file_count=len(result.compose_files),
+        )
         history = AuditHistory(root)
         history.save_audit(
             issues=result.all_issues,
@@ -1207,6 +1305,21 @@ def _save_audit_history(result, root: Path) -> None:
             services_scanned=result.total_services,
             duration_seconds=result.timing.total_seconds,
         )
+
+        # Submit to leaderboard if eligible
+        try:
+            from composearr.leaderboard import Leaderboard
+            Leaderboard().submit_score(score)
+        except Exception:
+            pass
+
+        # Show tier warnings if console available
+        if console is not None:
+            try:
+                from composearr.warnings import show_tier_warning
+                show_tier_warning(console, result.total_services)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -1232,7 +1345,7 @@ def _tui_quick_audit(console: Console, session: dict) -> None:
     console.print()
 
     # Save to audit history
-    _save_audit_history(result, root)
+    _save_audit_history(result, root, console)
 
     fmt_opts = FormatOptions(
         min_severity=Severity.ERROR,
@@ -1555,7 +1668,7 @@ def _run_audit_with_settings(console: Console, session: dict, settings: dict) ->
     console.print()
 
     # Save to audit history
-    _save_audit_history(result, root)
+    _save_audit_history(result, root, console)
 
     # Apply rule filters
     rule_ids = settings.get("rule_ids")
@@ -1728,22 +1841,77 @@ def _tui_fix(console: Console, session: dict) -> None:
     console.print(f"    [{C_MUTED}]\u2022 To rollback: copy .bak files over originals[/]")
     console.print()
 
-    # Apply or not? (no "without backups" option)
+    # Apply, preview, or cancel?
     action = inquirer.select(
         message="Apply fixes?",
         choices=[
-            Choice(value="apply", name="\u2713 Apply fixes \u2014 modify compose files (.yaml.bak backups created automatically)"),
+            Choice(value="preview", name="\U0001f441 Preview changes \u2014 see exactly what will change (diff view)"),
+            Choice(value="apply", name="\u2713 Apply all fixes \u2014 modify compose files (.yaml.bak backups created automatically)"),
             Choice(value="cancel", name="\u2716  Cancel \u2014 don't modify any files, return to menu"),
         ],
-        default="apply",
+        default="preview",
     ).execute()
 
     if action == "cancel":
         console.print(f"\n  [{C_MUTED}]No files modified[/]")
         return
 
-    from composearr.fixer import apply_fixes
-    fix_result = apply_fixes(fixable, root, backup=True)
+    if action == "preview":
+        # Show diff previews per-file with approve/skip
+        from composearr.fixer import preview_fixes, apply_fixes
+        from composearr.diff import DiffGenerator
+
+        previews = preview_fixes(fixable)
+        if not previews:
+            console.print(f"\n  [{C_MUTED}]No previewable changes found[/]")
+            return
+
+        differ = DiffGenerator()
+        approved_files: list[str] = []
+
+        for preview in previews:
+            try:
+                rel = str(preview.file_path.relative_to(root))
+            except ValueError:
+                rel = str(preview.file_path)
+
+            _section_header(console, f"Changes: {rel}", f"{preview.fix_count} fix{'es' if preview.fix_count != 1 else ''}")
+            differ.display_diff(console, preview.original, preview.modified, rel)
+
+            # Show which rules are being fixed
+            rule_ids = sorted({i.rule_id for i in preview.issues})
+            console.print(f"  [{C_MUTED}]Rules: {', '.join(rule_ids)}[/]")
+            console.print()
+
+            file_action = inquirer.select(
+                message=f"Apply changes to {rel}?",
+                choices=[
+                    Choice(value="approve", name="\u2713 Approve \u2014 apply these changes"),
+                    Choice(value="skip", name="\u2716 Skip \u2014 leave this file unchanged"),
+                ],
+                default="approve",
+            ).execute()
+
+            if file_action == "approve":
+                approved_files.append(str(preview.file_path))
+                console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]{rel} approved[/]")
+            else:
+                console.print(f"  [{C_MUTED}]\u2298 {rel} skipped[/]")
+            console.print()
+
+        if not approved_files:
+            console.print(f"\n  [{C_MUTED}]No files approved \u2014 nothing modified[/]")
+            return
+
+        # Filter fixable issues to only approved files
+        approved_set = set(approved_files)
+        approved_issues = [i for i in fixable if i.file_path in approved_set]
+
+        console.print(f"  [{C_TEXT}]Applying {len(approved_issues)} fixes to {len(approved_files)} file{'s' if len(approved_files) != 1 else ''}...[/]")
+        fix_result = apply_fixes(approved_issues, root, backup=True)
+    else:
+        from composearr.fixer import apply_fixes
+        fix_result = apply_fixes(fixable, root, backup=True)
 
     console.print()
     if fix_result.applied:
@@ -2903,6 +3071,7 @@ def _tui_config(console: Console, session: dict) -> None:
             Choice(value="show", name="Show effective configuration \u2014 see what settings are currently active"),
             Choice(value="create", name="Create starter config \u2014 generate a .composearr.yml for your stack"),
             Choice(value="validate", name="Validate config files \u2014 check your .composearr.yml for errors"),
+            Choice(value="reset", name="Reset config \u2014 delete your .composearr.yml and start fresh"),
             *_nav_choices(),
         ],
         default="show",
@@ -2917,7 +3086,11 @@ def _tui_config(console: Console, session: dict) -> None:
         return
     project_path = Path(path_str).resolve()
 
-    if action == "create":
+    if action == "reset":
+        _tui_reset_config(console, project_path)
+        return
+
+    elif action == "create":
         _tui_create_config(console, project_path)
 
     elif action == "validate":
@@ -2961,6 +3134,77 @@ def _tui_config(console: Console, session: dict) -> None:
         from composearr.config import load_config
         effective = load_config(project_path)
         render_effective_config(effective, console, project_path)
+
+
+def _tui_reset_config(console: Console, project_path: Path) -> None:
+    """Delete existing .composearr.yml files so user starts from a blank slate."""
+    config_locations: list[Path] = []
+
+    # Check project-level configs
+    for name in [".composearr.yml", ".composearr.yaml"]:
+        p = project_path / name
+        if p.is_file():
+            config_locations.append(p)
+
+    # Check global config
+    user_config = Path.home() / ".composearr.yml"
+    if user_config.is_file():
+        config_locations.append(user_config)
+
+    if not config_locations:
+        console.print(f"\n  [{C_MUTED}]No .composearr.yml files found. Already running with defaults.[/]")
+        return
+
+    console.print(f"\n  [{C_TEXT}]Found config files:[/]")
+    for cf in config_locations:
+        console.print(f"    [{C_TEAL}]{cf}[/]")
+    console.print()
+
+    console.print(f"  [{C_WARN}]This will permanently delete the selected config files.[/]")
+    console.print(f"  [{C_MUTED}]ComposeArr will use sensible defaults until you create a new config.[/]")
+    console.print(f"  [{C_MUTED}]You can rebuild your config right after from this same menu.[/]")
+    console.print()
+
+    # Let user pick which to delete
+    if len(config_locations) == 1:
+        choices = [
+            Choice(value="all", name=f"\u2713 Delete {config_locations[0]}"),
+            Choice(value="cancel", name="\u2716  Cancel \u2014 keep config"),
+        ]
+    else:
+        choices = [
+            Choice(value="all", name="\u2713 Delete all config files"),
+        ]
+        for cf in config_locations:
+            label = "global" if cf == user_config else "project"
+            choices.append(Choice(value=str(cf), name=f"\u2713 Delete {label} only \u2014 {cf}"))
+        choices.append(Choice(value="cancel", name="\u2716  Cancel \u2014 keep everything"))
+
+    action = inquirer.select(
+        message="What to reset?",
+        choices=choices,
+        default="cancel",
+    ).execute()
+
+    if action == "cancel":
+        console.print(f"\n  [{C_MUTED}]No changes made.[/]")
+        return
+
+    deleted = []
+    targets = config_locations if action == "all" else [Path(action)]
+    for cf in targets:
+        try:
+            cf.unlink()
+            deleted.append(cf)
+        except OSError as e:
+            console.print(f"  [{C_ERR}]Failed to delete {cf}: {e}[/]")
+
+    if deleted:
+        console.print(f"\n  [{C_OK}]\u2713 Config reset![/]")
+        for cf in deleted:
+            console.print(f"    [{C_MUTED}]Deleted: {cf}[/]")
+        console.print(f"\n  [{C_MUTED}]ComposeArr is now running with defaults.[/]")
+        console.print(f"  [{C_MUTED}]Select 'Create starter config' from the Config menu to build a new one.[/]")
 
 
 def _tui_create_config(console: Console, project_path: Path) -> None:
