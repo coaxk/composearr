@@ -699,7 +699,7 @@ def launch_tui() -> None:
         console.print(title_art)
     else:
         console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
-    console.print(f"  [{C_MUTED}]Docker Compose Hygiene Linter[/]")
+    console.print(f"  [{C_MUTED}]Caring aggressively about your YAMLs since 2026[/]")
     console.print()
 
     # Intro text — explain what the app does
@@ -765,7 +765,7 @@ def launch_tui() -> None:
             console.print()
             console.print(whale)
             console.print()
-            console.print(f"  [{C_MUTED}]Goodbye![/]\n")
+            console.print(f"  [{C_MUTED}]Remember: ComposeArr cares aggressively about your YAMLs. Even when you don\u2019t.[/]\n")
             break
         elif action == "quick":
             _tui_quick_audit(console, session)
@@ -3274,6 +3274,7 @@ def _tui_create_config(console: Console, project_path: Path) -> None:
     console.print()
     console.print(f"  [{C_TEXT}]ComposeArr will automatically load this file on every launch.[/]")
     console.print(f"  [{C_TEXT}]You can also edit it manually with any text editor \u2014 it\u2019s just YAML.[/]")
+    console.print(f"  [{C_MUTED}]We\u2019ll be caring aggressively about it from here on out.[/]")
     console.print()
 
     # Config format reference guide

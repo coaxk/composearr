@@ -24,7 +24,7 @@ from composearr.security.input_validator import validate_scan_path
 
 app = typer.Typer(
     name="composearr",
-    help="Docker Compose hygiene linter with cross-file intelligence.",
+    help="Caring aggressively about your YAMLs since 2026.",
     no_args_is_help=False,
     add_completion=False,
     invoke_without_command=True,
@@ -76,7 +76,7 @@ def main(
         False, "--version", "-v", help="Show version", callback=version_callback, is_eager=True
     ),
 ) -> None:
-    """ComposeArr — Docker Compose hygiene linter."""
+    """ComposeArr — caring aggressively about your YAMLs since 2026."""
     if ctx.invoked_subcommand is None:
         from composearr.tui import launch_tui
         launch_tui()
@@ -941,5 +941,5 @@ def whale() -> None:
     console.print(WHALE_ART)
     console.print()
     console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
-    console.print(f"  [{C_MUTED}]Keeping your Docker stacks shipshape[/] \U0001f433")
+    console.print(f"  [{C_MUTED}]Caring aggressively about your YAMLs since 2026[/] \U0001f433")
     console.print()

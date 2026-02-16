@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "composearr"
 version = "0.1.0"
-description = "Docker Compose hygiene linter with cross-file intelligence"
+description = "Caring aggressively about your YAMLs since 2026"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
