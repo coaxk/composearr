@@ -33,6 +33,7 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="arr",
         default_port=8989,
         healthcheck_endpoint="/api/v3/health",
+        typical_memory="512M",
         needs_puid_pgid=True,
         arr_service=True,
     ),
@@ -42,6 +43,7 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="arr",
         default_port=7878,
         healthcheck_endpoint="/api/v3/health",
+        typical_memory="512M",
         needs_puid_pgid=True,
         arr_service=True,
     ),
@@ -97,6 +99,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="media",
         default_port=32400,
         healthcheck_endpoint="/identity",
+        typical_cpu="2.0",
+        typical_memory="2G",
         needs_puid_pgid=True,
     ),
     "jellyfin": ServiceProfile(
@@ -105,6 +109,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="media",
         default_port=8096,
         healthcheck_endpoint="/health",
+        typical_cpu="2.0",
+        typical_memory="2G",
         needs_puid_pgid=True,
     ),
     "emby": ServiceProfile(
@@ -113,6 +119,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="media",
         default_port=8096,
         healthcheck_endpoint="/System/Ping",
+        typical_cpu="2.0",
+        typical_memory="2G",
         needs_puid_pgid=True,
     ),
     "tautulli": ServiceProfile(
@@ -145,6 +153,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="download",
         default_port=8080,
         healthcheck_endpoint="/api/v2/app/version",
+        typical_cpu="1.0",
+        typical_memory="512M",
         needs_puid_pgid=True,
     ),
     "transmission": ServiceProfile(
@@ -153,6 +163,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="download",
         default_port=9091,
         healthcheck_endpoint="/transmission/web/",
+        typical_cpu="1.0",
+        typical_memory="512M",
         needs_puid_pgid=True,
     ),
     "deluge": ServiceProfile(
@@ -161,6 +173,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="download",
         default_port=8112,
         healthcheck_type="tcp",
+        typical_cpu="1.0",
+        typical_memory="512M",
         needs_puid_pgid=True,
     ),
     "sabnzbd": ServiceProfile(
@@ -169,6 +183,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="download",
         default_port=8080,
         healthcheck_endpoint="/api?mode=version",
+        typical_cpu="1.0",
+        typical_memory="1G",
         needs_puid_pgid=True,
     ),
     "nzbget": ServiceProfile(
@@ -272,6 +288,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="monitoring",
         default_port=9090,
         healthcheck_endpoint="/-/healthy",
+        typical_cpu="1.0",
+        typical_memory="1G",
     ),
     # Utility / Management
     "portainer": ServiceProfile(
@@ -501,6 +519,8 @@ KNOWN_SERVICES: dict[str, ServiceProfile] = {
         service_type="utility",
         default_port=8123,
         healthcheck_endpoint="/api/",
+        typical_cpu="1.0",
+        typical_memory="1G",
     ),
     "cloudflared": ServiceProfile(
         name="Cloudflared",

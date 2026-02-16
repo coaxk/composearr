@@ -14,7 +14,10 @@ def validate_config_data(data: dict) -> list[str]:
     issues: list[str] = []
 
     # Valid top-level keys
-    valid_top_keys = {"rules", "ignore", "trusted_registries", "telemetry", "defaults"}
+    valid_top_keys = {
+        "rules", "ignore", "trusted_registries", "telemetry", "defaults",
+        "stack_path", "severity", "ignore_paths",
+    }
     for key in data:
         if key not in valid_top_keys:
             issues.append(f"Unknown top-level key: '{key}'")

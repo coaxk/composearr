@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "In-memory data store used as cache, message broker, and database"
+  category: database
+  tags: [cache, redis]
+  env_vars:
+    - name: REDIS_PASSWORD
+      default: ""
+      description: "Optional password for Redis authentication"
+  ports:
+    - host: 6379
+      container: 6379
+      description: "Redis client connections"
+  volumes_info:
+    - name: redis_data
+      description: "Redis persistent data (RDB/AOF snapshots)"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    env_file: [.env]
+    command: >
+      sh -c 'if [ -n "$REDIS_PASSWORD" ]; then
+        redis-server --appendonly yes --requirepass "$REDIS_PASSWORD";
+      else
+        redis-server --appendonly yes;
+      fi'
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis_data:

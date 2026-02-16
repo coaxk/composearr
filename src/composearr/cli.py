@@ -185,6 +185,23 @@ def audit(
             err_console = Console(file=_sys.stderr, highlight=False)
             err_console.print(f"\n  [{C_OK}]\u2713[/] Saved to [{C_TEAL}]{out_path}[/]")
 
+    # Save to audit history
+    try:
+        from composearr.history import AuditHistory
+        from composearr.scoring import calculate_stack_score
+
+        score = calculate_stack_score(result.all_issues, result.total_services)
+        history = AuditHistory(root)
+        history.save_audit(
+            issues=result.all_issues,
+            score=score,
+            files_scanned=len(result.compose_files),
+            services_scanned=result.total_services,
+            duration_seconds=result.timing.total_seconds,
+        )
+    except Exception:
+        pass  # History saving should never break the audit
+
     # Exit code: 1 if errors, 0 otherwise
     if result.error_count > 0:
         raise typer.Exit(code=1)
@@ -485,6 +502,436 @@ def explain(
             console.print(f"    [{C_TEAL}]{r.id}[/]  {r.name}")
         console.print()
         raise typer.Exit(code=1)
+
+
+@app.command()
+def history(
+    path: str = typer.Argument(None, help="Stack directory (auto-detects if omitted)"),
+    limit: int = typer.Option(10, "--limit", "-n", help="Number of entries to show"),
+) -> None:
+    """View audit history and score trends."""
+    if path is None:
+        from composearr.scanner.discovery import detect_stack_directory
+        detected = detect_stack_directory()
+        if detected:
+            root = detected
+        else:
+            root = Path.cwd().resolve()
+    else:
+        root = Path(path).resolve()
+
+    from composearr.history import AuditHistory, make_sparkline
+
+    hist = AuditHistory(root)
+    entries = hist.get_recent(limit=limit)
+
+    if not entries:
+        console.print(f"\n  [{C_MUTED}]No audit history found for {root}[/]")
+        console.print(f"  [{C_MUTED}]Run an audit first:[/] [{C_TEAL}]composearr audit[/]")
+        console.print()
+        return
+
+    # History table
+    table = Table(
+        box=box.SIMPLE_HEAD,
+        border_style=Style(color=C_BORDER),
+        header_style=f"{C_MUTED}",
+        padding=(0, 2),
+        show_edge=False,
+    )
+    table.add_column("DATE", style=f"{C_TEXT}", no_wrap=True)
+    table.add_column("GRADE", justify="center")
+    table.add_column("SCORE", justify="right", style=f"{C_TEXT}")
+    table.add_column("ISSUES", justify="right", style=f"{C_TEXT}")
+    table.add_column("ERR", justify="right")
+    table.add_column("WARN", justify="right")
+    table.add_column("FILES", justify="right", style=f"{C_MUTED}")
+    table.add_column("SVCS", justify="right", style=f"{C_MUTED}")
+    table.add_column("TIME", justify="right", style=f"{C_MUTED}")
+
+    grade_colors = {
+        "A+": C_OK, "A": C_OK, "A-": C_OK,
+        "B+": C_WARN, "B": C_WARN, "B-": C_WARN,
+        "C+": C_WARN, "C": C_WARN, "C-": C_WARN,
+        "D+": C_ERR, "D": C_ERR, "D-": C_ERR,
+        "F": C_ERR,
+    }
+
+    for entry in entries:
+        ts = entry.timestamp[:19].replace("T", " ")
+        gc = grade_colors.get(entry.grade, C_TEXT)
+        dur = f"{entry.duration_seconds:.1f}s" if entry.duration_seconds else ""
+        table.add_row(
+            ts,
+            f"[{gc}]{entry.grade}[/]",
+            str(entry.score),
+            str(entry.total_issues),
+            f"[{C_ERR}]{entry.errors}[/]" if entry.errors else "0",
+            f"[{C_WARN}]{entry.warnings}[/]" if entry.warnings else "0",
+            str(entry.files_scanned),
+            str(entry.services_scanned),
+            dur,
+        )
+
+    console.print()
+    console.print(f"  [{C_TEXT}]Audit History[/]  [{C_MUTED}]{len(entries)} entries[/]")
+    console.print()
+    console.print(table)
+    console.print()
+
+    # Sparkline
+    score_history = hist.get_score_history(limit=30)
+    if len(score_history) >= 2:
+        scores = [s for _, s in score_history]
+        sparkline = make_sparkline(scores)
+        console.print(f"  [{C_MUTED}]Score trend:[/] [{C_TEAL}]{sparkline}[/]")
+
+    # Trend
+    trend = hist.get_trend()
+    if trend:
+        if trend.improved:
+            console.print(f"  [{C_OK}]\u25b2 {trend.summary()}[/]")
+        elif trend.score_delta < 0:
+            console.print(f"  [{C_ERR}]\u25bc {trend.summary()}[/]")
+        else:
+            console.print(f"  [{C_MUTED}]\u25ac {trend.summary()}[/]")
+    console.print()
+
+
+@app.command()
+def freshness(
+    path: str = typer.Argument(None, help="Stack directory (auto-detects if omitted)"),
+    timeout: int = typer.Option(10, "--timeout", "-t", help="API timeout in seconds"),
+) -> None:
+    """Check for newer image versions across your stack."""
+    if path is None:
+        from composearr.scanner.discovery import detect_stack_directory
+        detected = detect_stack_directory()
+        if detected:
+            root = detected
+        else:
+            root = Path.cwd().resolve()
+    else:
+        root = Path(path).resolve()
+
+    _validate_path(root, path)
+
+    from composearr.registry_client import RegistryClient
+    from composearr.scanner.discovery import discover_compose_files
+    from composearr.scanner.parser import parse_compose_file
+
+    console.print(f"\n  [{C_INFO}]\u2139[/]  [{C_TEXT}]Checking image freshness\u2026[/]")
+    console.print(f"  [{C_MUTED}]Querying registries for available tags (this may take a moment)[/]\n")
+
+    paths_found, _ = discover_compose_files(root)
+    client = RegistryClient(timeout=timeout)
+
+    all_results = []
+    for file_path in paths_found:
+        cf = parse_compose_file(file_path)
+        if cf.parse_error or not cf.services:
+            continue
+        results = client.check_freshness(cf.services, str(cf.path))
+        all_results.extend(results)
+
+    if not all_results:
+        console.print(f"  [{C_MUTED}]No images found to check[/]\n")
+        return
+
+    table = Table(
+        box=box.SIMPLE_HEAD,
+        border_style=Style(color=C_BORDER),
+        header_style=f"{C_MUTED}",
+        padding=(0, 2),
+        show_edge=False,
+    )
+    table.add_column("SERVICE", style=f"bold {C_TEXT}")
+    table.add_column("CURRENT", no_wrap=True)
+    table.add_column("LATEST STABLE", no_wrap=True)
+    table.add_column("STATUS")
+    table.add_column("TAGS", justify="right", style=f"{C_MUTED}")
+
+    for r in all_results:
+        if r.error:
+            status = f"[{C_MUTED}]{r.error}[/]"
+            latest = "-"
+        elif r.up_to_date:
+            status = f"[{C_OK}]\u2713 Up to date[/]"
+            latest = f"[{C_OK}]{r.latest_stable or '-'}[/]"
+        elif r.latest_stable and r.current_tag != r.latest_stable:
+            status = f"[{C_WARN}]\u25b2 Update available[/]"
+            latest = f"[{C_TEAL}]{r.latest_stable}[/]"
+        else:
+            status = f"[{C_MUTED}]Unknown[/]"
+            latest = f"{r.latest_stable or '-'}"
+
+        # Color the current tag
+        if r.current_tag == "latest":
+            current = f"[{C_WARN}]:latest[/]"
+        else:
+            current = f"[{C_TEXT}]:{r.current_tag}[/]"
+
+        table.add_row(
+            r.service,
+            current,
+            latest,
+            status,
+            str(r.available_tags) if r.available_tags else "-",
+        )
+
+    console.print(f"  [{C_TEXT}]Image Freshness Report[/]  [{C_MUTED}]{len(all_results)} images[/]")
+    console.print()
+    console.print(table)
+    console.print()
+    console.print(f"  [{C_MUTED}]This is informational only. ComposeArr respects your version choices.[/]")
+    console.print(f"  [{C_MUTED}]Use[/] [{C_TEAL}]composearr explain CA001[/] [{C_MUTED}]for tag pinning guidance.[/]")
+    console.print()
+
+
+@app.command()
+def watch(
+    path: str = typer.Argument(None, help="Stack directory to watch (auto-detects if omitted)"),
+    debounce: float = typer.Option(1.0, "--debounce", "-d", help="Debounce seconds between re-audits"),
+) -> None:
+    """Watch compose files and re-audit on changes."""
+    if path is None:
+        from composearr.scanner.discovery import detect_stack_directory
+        detected = detect_stack_directory()
+        if detected:
+            root = detected
+        else:
+            root = Path.cwd().resolve()
+    else:
+        root = Path(path).resolve()
+
+    _validate_path(root, path)
+
+    from composearr.watcher import WatchMode
+
+    watcher = WatchMode(root, debounce=debounce)
+    watcher.start(console)
+
+
+@app.command()
+def orphanage(
+    path: str = typer.Argument(None, help="Stack directory (auto-detects if omitted)"),
+) -> None:
+    """Find orphaned Docker resources (volumes, networks) not in compose files.
+
+    The Orphanage identifies Docker resources that exist but aren't referenced
+    in any compose file. ComposeArr NEVER auto-deletes — you decide what to keep.
+    """
+    if path is None:
+        from composearr.scanner.discovery import detect_stack_directory
+        detected = detect_stack_directory()
+        if detected:
+            root = detected
+        else:
+            root = Path.cwd().resolve()
+    else:
+        root = Path(path).resolve()
+
+    _validate_path(root, path)
+
+    from composearr.orphanage import OrphanageFinder
+    from rich import box
+    from rich.table import Table
+
+    finder = OrphanageFinder(root)
+    report = finder.find_orphans()
+
+    if not report.docker_available:
+        console.print(f"\n  [red]Could not connect to Docker[/]")
+        console.print()
+        for line in report.error.splitlines():
+            console.print(f"  [dim]{line}[/]")
+        console.print()
+        raise typer.Exit(1)
+
+    if not report.has_orphans:
+        console.print(f"\n  [green]✓[/] No orphaned resources found!")
+        console.print(f"  All {report.total_volumes} volumes and {report.total_networks} networks are referenced in compose files.")
+        return
+
+    if report.orphaned_volumes:
+        table = Table(title=f"Orphaned Volumes ({len(report.orphaned_volumes)})", box=box.SIMPLE_HEAD)
+        table.add_column("NAME", style="yellow")
+        table.add_column("DRIVER")
+        table.add_column("MOUNTPOINT", style="dim")
+        for v in report.orphaned_volumes:
+            table.add_row(v.name, v.driver, v.mountpoint)
+        console.print(table)
+        console.print()
+
+    if report.orphaned_networks:
+        table = Table(title=f"Orphaned Networks ({len(report.orphaned_networks)})", box=box.SIMPLE_HEAD)
+        table.add_column("NAME", style="yellow")
+        table.add_column("ID", style="dim")
+        table.add_column("DRIVER")
+        for n in report.orphaned_networks:
+            table.add_row(n.name, n.id, n.driver)
+        console.print(table)
+        console.print()
+
+    console.print(f"  Total orphans: {report.total_orphans}")
+    console.print(f"  [dim]Manual cleanup: docker volume rm <name> / docker network rm <name>[/]")
+    console.print(f"  [dim]ComposeArr never auto-deletes — you're in control.[/]")
+
+
+@app.command()
+def runtime(
+    path: str = typer.Argument(None, help="Stack directory (auto-detects if omitted)"),
+) -> None:
+    """Compare compose definitions against running containers.
+
+    Shows services that are defined but not running, running but not defined,
+    or running with different images than specified in compose files.
+    """
+    if path is None:
+        from composearr.scanner.discovery import detect_stack_directory
+        detected = detect_stack_directory()
+        if detected:
+            root = detected
+        else:
+            root = Path.cwd().resolve()
+    else:
+        root = Path(path).resolve()
+
+    _validate_path(root, path)
+
+    from composearr.runtime import RuntimeComparator
+    from rich import box
+    from rich.table import Table
+
+    comparator = RuntimeComparator(root)
+    report = comparator.compare()
+
+    if not report.docker_available:
+        console.print(f"\n  [red]Could not connect to Docker[/]")
+        console.print()
+        for line in report.error.splitlines():
+            console.print(f"  [dim]{line}[/]")
+        console.print()
+        raise typer.Exit(1)
+
+    console.print(f"\n  Compose: {report.compose_services} services  |  Running: {report.running_services} containers")
+    console.print()
+
+    if not report.has_diffs:
+        console.print(f"  [green]✓[/] All compose services match running containers!")
+        return
+
+    sev_colors = {"error": "red", "warning": "yellow", "info": "blue"}
+    table = Table(box=box.SIMPLE_HEAD)
+    table.add_column("SERVICE", style="bold")
+    table.add_column("ISSUE")
+    table.add_column("EXPECTED", style="dim")
+    table.add_column("ACTUAL", style="dim")
+    table.add_column("SEV", justify="center")
+
+    for d in report.diffs:
+        color = sev_colors.get(d.severity, "dim")
+        table.add_row(d.service, d.category, d.expected, d.actual, f"[{color}]{d.severity}[/]")
+
+    console.print(table)
+
+
+@app.command()
+def init(
+    template: str = typer.Argument(None, help="Template name (e.g., 'sonarr')"),
+    output: Path = typer.Option(None, "--output", "-o", help="Output directory (default: ./<template>)"),
+    list_all: bool = typer.Option(False, "--list", "-l", help="List all available templates"),
+) -> None:
+    """Generate a compose file from a best-practice template.
+
+    Creates a production-ready compose file for common self-hosted apps.
+    Everything ComposeArr checks for — baked in from the start!
+
+    Examples:
+        composearr init sonarr
+        composearr init nginx --output ~/docker/nginx
+        composearr init --list
+    """
+    from composearr.commands.init import init_command
+    init_command(template, output, list_all)
+
+
+@app.command()
+def batch(
+    path: str = typer.Argument(None, help="Stack directory (auto-detects if omitted)"),
+    fix: bool = typer.Option(False, "--fix", help="Auto-fix all fixable issues"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Don't prompt, apply all fixes"),
+    severity: str = typer.Option(None, "--severity", "-s", help="Minimum severity (error/warning/info)"),
+    rules: str = typer.Option(None, "--rules", "-r", help="Comma-separated rule IDs to fix"),
+    no_backup: bool = typer.Option(False, "--no-backup", help="Don't create .bak backups"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+) -> None:
+    """Batch operations for CI/CD pipelines.
+
+    Scan and fix all compose files without interactive prompts.
+    Perfect for automated pipelines and pre-commit hooks.
+
+    Examples:
+        composearr batch                          # Scan only
+        composearr batch --fix --yes              # Fix everything
+        composearr batch --fix --yes --severity error  # Fix errors only
+        composearr batch --fix --yes --rules CA001,CA501
+    """
+    if path is None:
+        from composearr.scanner.discovery import detect_stack_directory
+        detected = detect_stack_directory()
+        root = detected if detected else Path.cwd().resolve()
+    else:
+        root = Path(path).resolve()
+
+    _validate_path(root, path)
+
+    from composearr.batch import BatchProcessor
+
+    rule_list = [r.strip().upper() for r in rules.split(",")] if rules else None
+
+    processor = BatchProcessor(
+        stack_path=root,
+        auto_approve=fix and yes,
+        create_backups=not no_backup,
+    )
+
+    result = processor.fix_all(
+        min_severity=severity,
+        rule_ids=rule_list,
+    )
+
+    if json_output:
+        import json
+        console.print(json.dumps({
+            "files_processed": result.files_processed,
+            "issues_found": result.issues_found,
+            "issues_fixed": result.issues_fixed,
+            "issues_unfixable": result.issues_unfixable,
+            "errors": result.errors,
+            "exit_code": result.exit_code,
+        }, indent=2))
+    else:
+        console.print(f"\n  [cyan]Batch Results:[/]")
+        console.print(f"    Files processed: {result.files_processed}")
+        console.print(f"    Issues found:    {result.issues_found}")
+        console.print(f"    Issues fixed:    [green]{result.issues_fixed}[/]")
+        console.print(f"    Unfixable:       {result.issues_unfixable}")
+
+        if result.fixed_rules:
+            console.print(f"\n  [cyan]Fixed by rule:[/]")
+            for rule_id, count in sorted(result.fixed_rules.items()):
+                console.print(f"    {rule_id}: {count}")
+
+        if result.errors:
+            console.print(f"\n  [red]Errors ({len(result.errors)}):[/]")
+            for error in result.errors:
+                console.print(f"    {error}")
+
+        if not fix:
+            console.print(f"\n  [dim]Add --fix --yes to auto-fix all issues[/]")
+
+    raise typer.Exit(result.exit_code)
 
 
 @app.command(hidden=True)

@@ -29,14 +29,18 @@ C_TEXT = "#fafafa"
 C_INFO = "#3b82f6"
 
 
-def render_topology(root: Path, console: Console) -> None:
-    """Render a visual network topology map."""
-    from composearr.scanner.discovery import discover_compose_files
-    from composearr.scanner.parser import parse_compose_file
+def render_topology(root: Path, console: Console, compose_files: list | None = None) -> None:
+    """Render a visual network topology map.
 
-    paths, _ = discover_compose_files(root)
-    compose_files = [parse_compose_file(p) for p in paths]
-    compose_files = [cf for cf in compose_files if not cf.parse_error]
+    If *compose_files* is provided, skip discovery/parsing (caller already did it).
+    """
+    if compose_files is None:
+        from composearr.scanner.discovery import discover_compose_files
+        from composearr.scanner.parser import parse_compose_file
+
+        paths, _ = discover_compose_files(root)
+        compose_files = [parse_compose_file(p) for p in paths]
+        compose_files = [cf for cf in compose_files if not cf.parse_error]
 
     if not compose_files:
         console.print(f"  [{C_MUTED}]No compose files found[/]")

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from composearr.fixer import apply_fixes, FixResult
+from composearr.fixer import apply_fixes, FixResult, verify_yaml_file
 from composearr.models import LintIssue, Severity
 
 
@@ -30,6 +30,8 @@ class TestFixResult:
         assert r.skipped == 0
         assert r.errors == 0
         assert r.backup_paths == []
+        assert r.verified_files == []
+        assert r.verification_errors == []
 
 
 class TestApplyFixes:
@@ -123,3 +125,56 @@ class TestApplyFixes:
 
         assert result.applied == 2
         assert len(result.backup_paths) == 2
+
+    def test_fix_verifies_yaml_structure(self, tmp_path: Path):
+        compose = tmp_path / "compose.yaml"
+        compose.write_text("services:\n  web:\n    image: nginx\n", encoding="utf-8")
+
+        issue = _make_issue(str(compose))
+        result = apply_fixes([issue], tmp_path, backup=False)
+
+        assert result.applied == 1
+        assert len(result.verified_files) == 1
+        assert result.verified_files[0] == compose
+        assert result.verification_errors == []
+
+
+class TestVerifyYamlFile:
+    def test_valid_compose(self, tmp_path: Path):
+        f = tmp_path / "compose.yaml"
+        f.write_text("services:\n  web:\n    image: nginx\n", encoding="utf-8")
+        ok, msg = verify_yaml_file(f)
+        assert ok is True
+        assert msg == ""
+
+    def test_missing_services_key(self, tmp_path: Path):
+        f = tmp_path / "compose.yaml"
+        f.write_text("version: '3'\n", encoding="utf-8")
+        ok, msg = verify_yaml_file(f)
+        assert ok is False
+        assert "services" in msg
+
+    def test_empty_file(self, tmp_path: Path):
+        f = tmp_path / "compose.yaml"
+        f.write_text("", encoding="utf-8")
+        ok, msg = verify_yaml_file(f)
+        assert ok is False
+
+    def test_invalid_yaml(self, tmp_path: Path):
+        f = tmp_path / "compose.yaml"
+        f.write_text("{{invalid yaml: [", encoding="utf-8")
+        ok, msg = verify_yaml_file(f)
+        assert ok is False
+
+    def test_services_is_mapping(self, tmp_path: Path):
+        f = tmp_path / "compose.yaml"
+        f.write_text("services:\n  web:\n    image: nginx\n", encoding="utf-8")
+        ok, _ = verify_yaml_file(f)
+        assert ok is True
+
+    def test_services_not_mapping(self, tmp_path: Path):
+        f = tmp_path / "compose.yaml"
+        f.write_text("services:\n  - web\n  - db\n", encoding="utf-8")
+        ok, msg = verify_yaml_file(f)
+        assert ok is False
+        assert "mapping" in msg.lower() or "list" in msg.lower()

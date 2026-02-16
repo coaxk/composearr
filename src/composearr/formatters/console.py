@@ -99,12 +99,12 @@ class ConsoleFormatter:
 
         self._header()
         self._summary_section(result, root_path, opts)
+        self._score_section(result, root_path)
 
         # Pause after summary in TUI mode so results don't fly off screen
         if opts.tui_mode and result.all_issues:
-            self.console.print(f"  [{C_MUTED}]Press Enter to see detailed results\u2026[/]")
             try:
-                input()
+                self.console.input(f"  [{C_MUTED}]Press Enter to see detailed results\u2026[/] ")
             except (EOFError, KeyboardInterrupt):
                 pass
 
@@ -238,6 +238,82 @@ class ConsoleFormatter:
                 rel = _rel_path(str(cf.path), root_path)
                 self.console.print(f"    [{C_TEAL}]{rel}[/]")
             self.console.print()
+
+    # ── Stack Health Score ─────────────────────────────────────
+
+    def _score_section(self, result: ScanResult, root_path: str = ".") -> None:
+        """Display the stack health score with category breakdown and trend."""
+        from composearr.scoring import calculate_stack_score
+
+        score = calculate_stack_score(result.all_issues, result.total_services)
+
+        grade_colors = {
+            "A+": C_OK, "A": C_OK, "A-": C_OK,
+            "B+": C_WARN, "B": C_WARN, "B-": C_WARN,
+            "C+": C_WARN, "C": C_WARN, "C-": C_WARN,
+            "D+": C_ERR, "D": C_ERR, "D-": C_ERR,
+            "F": C_ERR,
+        }
+        grade_color = grade_colors.get(score.grade, C_TEXT)
+
+        def _bar(val: int) -> str:
+            filled = max(0, min(15, int(val / 100 * 15)))
+            return "\u2588" * filled + "\u2591" * (15 - filled)
+
+        self.console.print(f"  [bold {grade_color}]Stack Health Score: {score.grade}[/]  {_muted(f'{score.overall}/100')}")
+
+        # Show sparkline and trend if history exists
+        try:
+            from composearr.history import AuditHistory, make_sparkline
+
+            root = Path(root_path).resolve()
+            history = AuditHistory(root)
+            score_history = history.get_score_history(limit=20)
+
+            if len(score_history) >= 2:
+                scores = [s for _, s in score_history]
+                sparkline = make_sparkline(scores)
+                self.console.print(f"  {_muted('History:')} [{C_TEAL}]{sparkline}[/]  {_muted(f'{len(scores)} audits')}")
+
+            trend = history.get_trend()
+            if trend:
+                if trend.improved:
+                    self.console.print(
+                        f"  [{C_OK}]\u25b2[/] [{C_OK}]{trend.summary()}[/]"
+                    )
+                elif trend.score_delta < 0:
+                    self.console.print(
+                        f"  [{C_ERR}]\u25bc[/] [{C_ERR}]{trend.summary()}[/]"
+                    )
+                else:
+                    self.console.print(
+                        f"  [{C_WARN}]\u25ac[/] {_muted(trend.summary())}"
+                    )
+        except Exception:
+            pass  # Trend display should never break the output
+
+        self.console.print()
+        self.console.print(
+            f"    [{C_TEAL}]Security:[/]     {score.breakdown.security:>3}/100  "
+            f"[{C_OK if score.breakdown.security >= 80 else C_WARN if score.breakdown.security >= 60 else C_ERR}]"
+            f"{_bar(score.breakdown.security)}[/]"
+        )
+        self.console.print(
+            f"    [{C_TEAL}]Reliability:[/]  {score.breakdown.reliability:>3}/100  "
+            f"[{C_OK if score.breakdown.reliability >= 80 else C_WARN if score.breakdown.reliability >= 60 else C_ERR}]"
+            f"{_bar(score.breakdown.reliability)}[/]"
+        )
+        self.console.print(
+            f"    [{C_TEAL}]Consistency:[/]  {score.breakdown.consistency:>3}/100  "
+            f"[{C_OK if score.breakdown.consistency >= 80 else C_WARN if score.breakdown.consistency >= 60 else C_ERR}]"
+            f"{_bar(score.breakdown.consistency)}[/]"
+        )
+        self.console.print(
+            f"    [{C_TEAL}]Network:[/]      {score.breakdown.network:>3}/100  "
+            f"[{C_OK if score.breakdown.network >= 80 else C_WARN if score.breakdown.network >= 60 else C_ERR}]"
+            f"{_bar(score.breakdown.network)}[/]"
+        )
+        self.console.print()
 
     # ── Render by Severity (default) ────────────────────────────
 

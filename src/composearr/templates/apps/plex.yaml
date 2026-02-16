@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "Media server for streaming movies, TV, and music"
+  category: media
+  tags: [media, server, plex]
+  env_vars:
+    - name: PUID
+      default: "1000"
+      description: "User ID for file permissions"
+    - name: PGID
+      default: "1000"
+      description: "Group ID for file permissions"
+    - name: TZ
+      default: "UTC"
+      description: "Timezone for the container"
+    - name: PLEX_CLAIM
+      default: ""
+      description: "Plex claim token from https://plex.tv/claim"
+    - name: VERSION
+      default: "docker"
+      description: "Plex update channel (docker, latest, public, plexpass)"
+  ports:
+    - host: 32400
+      container: 32400
+      description: "Plex media server web interface"
+  volumes_info:
+    - name: plex_config
+      description: "Plex configuration, database, and metadata"
+    - name: data
+      description: "Media library root path"
+
+services:
+  plex:
+    image: lscr.io/linuxserver/plex:1.41
+    container_name: plex
+    network_mode: host
+    env_file: [.env]
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+      - PLEX_CLAIM=${PLEX_CLAIM:-}
+      - VERSION=${VERSION:-docker}
+    volumes:
+      - plex_config:/config
+      - ${DATA_PATH:-/data}:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:32400/identity"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  plex_config:

@@ -175,3 +175,50 @@ class MissingTimezone(BaseRule):
                 )
             ]
         return []
+
+
+class DuplicateEnvVars(BaseRule):
+    id = "CA404"
+    name = "duplicate-env-vars"
+    severity = Severity.ERROR
+    scope = Scope.SERVICE
+    description = "Duplicate environment variable (last value wins silently)"
+    category = "consistency"
+
+    def check_service(
+        self,
+        service_name: str,
+        service_config: dict,
+        compose_file: ComposeFile,
+    ) -> list[LintIssue]:
+        env = service_config.get("environment")
+        if not env or not isinstance(env, list):
+            return []  # Dict format can't have duplicates
+
+        seen: dict[str, list[str]] = defaultdict(list)
+        for entry in env:
+            s = str(entry)
+            if "=" in s:
+                key, _, value = s.partition("=")
+                seen[key.strip()].append(value.strip())
+
+        issues: list[LintIssue] = []
+        line = find_line_number(compose_file.raw_content, f"{service_name}:")
+
+        for key, values in seen.items():
+            if len(values) > 1:
+                issues.append(self._make_issue(
+                    f"Duplicate environment variable '{key}' defined {len(values)} times — "
+                    f"last value '{values[-1]}' wins silently",
+                    str(compose_file.path),
+                    line=line,
+                    service=service_name,
+                    fix_available=True,
+                    suggested_fix=(
+                        f"Remove duplicate '{key}' definitions. Values found:\n"
+                        + "\n".join(f"  - {key}={v}" for v in values)
+                        + f"\nKeep only the intended value."
+                    ),
+                ))
+
+        return issues

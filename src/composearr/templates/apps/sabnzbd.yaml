@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "Usenet binary newsreader and download client"
+  category: download
+  tags: [download, usenet]
+  env_vars:
+    - name: PUID
+      default: "1000"
+      description: "User ID for file permissions"
+    - name: PGID
+      default: "1000"
+      description: "Group ID for file permissions"
+    - name: TZ
+      default: "UTC"
+      description: "Timezone for the container"
+  ports:
+    - host: 8080
+      container: 8080
+      description: "SABnzbd web interface"
+  volumes_info:
+    - name: sabnzbd_config
+      description: "SABnzbd configuration and state"
+    - name: data
+      description: "Download and media root path"
+
+services:
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:4.4
+    container_name: sabnzbd
+    env_file: [.env]
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+    ports:
+      - "${SABNZBD_PORT:-8080}:8080"
+    volumes:
+      - sabnzbd_config:/config
+      - ${DATA_PATH:-/data}:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  sabnzbd_config:

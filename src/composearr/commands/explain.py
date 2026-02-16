@@ -275,6 +275,370 @@ RULE_DOCS: dict[str, dict] = {
             "https://docs.docker.com/compose/how-tos/networking/",
         ],
     },
+    "CA404": {
+        "why": (
+            "When the same environment variable is defined multiple times in a list, "
+            "Docker silently uses the last value. This can cause confusing behavior "
+            "where the 'wrong' value is active despite appearing correct in the file."
+        ),
+        "scenarios": [
+            "DB_HOST defined twice after a copy-paste — the wrong database is connected",
+            "TZ set in both environment: list and env_file, with different values",
+            "A merge conflict left duplicate entries that went unnoticed",
+        ],
+        "fix_examples": [
+            ("Remove the duplicate", "environment:\n  - DB_HOST=postgres  # Keep only one"),
+            ("Use dict format to prevent duplicates", "environment:\n  DB_HOST: postgres\n  DB_PORT: \"5432\""),
+        ],
+        "related": ["CA403"],
+        "learn_more": [
+            "https://docs.docker.com/compose/how-tos/environment-variables/set-environment-variables/",
+        ],
+    },
+    "CA501": {
+        "why": (
+            "Without memory limits, a single misbehaving container can consume all "
+            "available RAM, causing the Linux OOM killer to terminate random processes "
+            "— including other containers or even the Docker daemon itself."
+        ),
+        "scenarios": [
+            "A memory leak in Plex gradually consumes all RAM until the server crashes",
+            "A download client unpacking a large archive spikes memory and OOM kills your database",
+            "Your server becomes unresponsive because one container ate all the memory",
+        ],
+        "fix_examples": [
+            ("Add memory limit via deploy", "deploy:\n  resources:\n    limits:\n      memory: 512M"),
+            ("Full resource limits block", "deploy:\n  resources:\n    limits:\n      memory: 1G\n      cpus: '1.0'\n    reservations:\n      memory: 256M"),
+        ],
+        "related": ["CA502", "CA503"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/deploy/#resources",
+            "https://docs.docker.com/config/containers/resource_constraints/",
+        ],
+    },
+    "CA502": {
+        "why": (
+            "Without CPU limits, a single container can monopolize all CPU cores, "
+            "starving other services. This is especially problematic for media "
+            "servers doing transcoding or download clients extracting archives."
+        ),
+        "scenarios": [
+            "Plex transcoding a 4K stream pegs all cores — Sonarr and Radarr become unresponsive",
+            "A runaway process in one container causes 100% CPU on all cores",
+            "Multiple services compete for CPU during peak hours",
+        ],
+        "fix_examples": [
+            ("Add CPU limit via deploy", "deploy:\n  resources:\n    limits:\n      cpus: '0.5'  # Half a core"),
+            ("Media server with more headroom", "deploy:\n  resources:\n    limits:\n      cpus: '2.0'  # 2 cores for transcoding\n      memory: 2G"),
+        ],
+        "related": ["CA501", "CA503"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/deploy/#resources",
+            "https://docs.docker.com/config/containers/resource_constraints/",
+        ],
+    },
+    "CA503": {
+        "why": (
+            "Resource limits that are significantly different from typical values "
+            "for a known application may indicate a misconfiguration. Too low can "
+            "cause OOM kills; too high wastes resources that other containers need."
+        ),
+        "scenarios": [
+            "Nginx set to 4GB memory — it typically needs 128MB",
+            "A database limited to 64MB — it will crash under any real load",
+            "Plex limited to 0.25 CPUs — transcoding will be unusable",
+        ],
+        "fix_examples": [
+            ("Use typical values as a starting point", "# Sonarr/Radarr: 512M memory, 0.5 CPU\n# Plex/Jellyfin: 2G memory, 2.0 CPU\n# Nginx/Caddy: 128M memory, 0.25 CPU\n# Databases: 512M-1G memory, 1.0 CPU"),
+        ],
+        "related": ["CA501", "CA502"],
+        "learn_more": [
+            "https://docs.docker.com/config/containers/resource_constraints/",
+        ],
+    },
+    "CA504": {
+        "why": (
+            "Docker's default logging driver (json-file) has NO log rotation. Every "
+            "line your container logs is appended to a JSON file that grows forever. "
+            "On a busy server, this can fill your disk in days or weeks."
+        ),
+        "scenarios": [
+            "A chatty application fills /var/lib/docker/containers with gigabytes of logs",
+            "Disk fills up at 3am, all containers crash because they can't write",
+            "You run 'docker system df' and discover logs consuming more space than images",
+        ],
+        "fix_examples": [
+            ("Add logging with rotation", "logging:\n  driver: json-file\n  options:\n    max-size: \"10m\"\n    max-file: \"3\""),
+            ("Set globally in Docker daemon config", "# /etc/docker/daemon.json\n{\n  \"log-driver\": \"json-file\",\n  \"log-opts\": {\n    \"max-size\": \"10m\",\n    \"max-file\": \"3\"\n  }\n}"),
+        ],
+        "related": ["CA505"],
+        "learn_more": [
+            "https://docs.docker.com/config/containers/logging/configure/",
+            "https://docs.docker.com/config/containers/logging/json-file/",
+        ],
+    },
+    "CA505": {
+        "why": (
+            "A logging driver is configured but rotation limits are missing. This "
+            "means logs will still grow unbounded. Both max-size and max-file must "
+            "be set for rotation to actually work."
+        ),
+        "scenarios": [
+            "Logging driver is set to json-file but max-size is missing — same as no config",
+            "max-size is set but max-file isn't — only one log file exists but it can grow forever",
+        ],
+        "fix_examples": [
+            ("Add both rotation options", "logging:\n  driver: json-file\n  options:\n    max-size: \"10m\"  # Max size per file\n    max-file: \"3\"     # Keep 3 rotated files"),
+        ],
+        "related": ["CA504"],
+        "learn_more": [
+            "https://docs.docker.com/config/containers/logging/json-file/",
+        ],
+    },
+    "CA701": {
+        "why": (
+            "Bind mounts (/host/path:/container/path) tie your compose file to a specific "
+            "host directory structure. Named volumes are managed by Docker, making your "
+            "stack more portable, easier to back up, and compatible with Docker's volume "
+            "lifecycle (create, inspect, prune)."
+        ),
+        "scenarios": [
+            "Moving a stack to a new server requires recreating the same directory structure",
+            "Host path permissions differ between Linux, macOS, and Windows",
+            "Docker Desktop on macOS/Windows has slow bind mount performance vs named volumes",
+        ],
+        "fix_examples": [
+            ("Convert bind mount to named volume", "# Before:\nvolumes:\n  - ./data:/app/data\n\n# After:\nvolumes:\n  - app_data:/app/data\n\nvolumes:\n  app_data:"),
+            ("Keep bind mount for config files", "# Bind mounts are fine for:\nvolumes:\n  - ./config.yml:/app/config.yml:ro  # Config files you edit\n  - /etc/localtime:/etc/localtime:ro  # System files"),
+        ],
+        "related": ["CA702", "CA601"],
+        "learn_more": [
+            "https://docs.docker.com/storage/volumes/",
+        ],
+    },
+    "CA702": {
+        "why": (
+            "If a service references a named volume that isn't defined in the top-level "
+            "volumes section, Docker Compose will create it as an anonymous volume. "
+            "Anonymous volumes are harder to manage, won't survive 'docker compose down -v', "
+            "and their behavior varies between Compose V1 and V2."
+        ),
+        "scenarios": [
+            "Service uses 'mydata:/app/data' but 'mydata' isn't in the volumes section",
+            "Typo in volume name leads to orphaned data across compose restarts",
+            "docker compose down -v doesn't clean up the unreferenced volume",
+        ],
+        "fix_examples": [
+            ("Define the volume", "services:\n  app:\n    volumes:\n      - app_data:/app/data\n\nvolumes:\n  app_data:  # Explicit definition"),
+            ("With driver options", "volumes:\n  app_data:\n    driver: local\n    driver_opts:\n      type: none\n      o: bind\n      device: /mnt/storage/app"),
+        ],
+        "related": ["CA701"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/07-volumes/",
+        ],
+    },
+    "CA304": {
+        "why": (
+            "DNS configuration inside containers has subtle interactions with network modes. "
+            "In host mode, custom DNS settings are silently ignored. Pointing DNS to 127.0.0.1 "
+            "inside a container resolves to the container itself — not the host — so local DNS "
+            "resolvers (Pi-hole, AdGuard) won't work unless explicitly configured."
+        ),
+        "scenarios": [
+            "Container with network_mode: host has dns: 1.1.1.1 — setting is silently ignored",
+            "Service uses dns: 127.0.0.1 expecting the host's Pi-hole, but gets no DNS resolution",
+            "VPN container tunnels DNS but downstream services still use container-local localhost",
+        ],
+        "fix_examples": [
+            ("Use public DNS", "dns:\n  - 8.8.8.8\n  - 1.1.1.1"),
+            ("Use Docker host gateway for Pi-hole", "dns:\n  - 172.17.0.1  # Docker host gateway\n  # Or use extra_hosts to map host.docker.internal"),
+            ("Remove DNS from host mode service", "network_mode: host\n# Remove: dns: [...]  (host mode uses host DNS)"),
+        ],
+        "related": ["CA302", "CA303"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/05-services/#dns",
+            "https://docs.docker.com/network/#dns-services",
+        ],
+    },
+    "CA801": {
+        "why": (
+            "Linux capabilities are fine-grained permissions that replace the old "
+            "all-or-nothing root model. By default, Docker containers get a broad set "
+            "of capabilities. Dropping all and adding back only what's needed follows "
+            "the principle of least privilege and limits damage from container escapes."
+        ),
+        "scenarios": [
+            "A compromised container with NET_RAW can sniff network traffic from other containers",
+            "SYS_ADMIN capability allows mounting host filesystems from inside the container",
+            "An attacker uses CAP_DAC_OVERRIDE to bypass file permission checks",
+        ],
+        "fix_examples": [
+            ("Drop all capabilities (most services)", "cap_drop:\n  - ALL"),
+            ("Drop all, add back specific ones", "cap_drop:\n  - ALL\ncap_add:\n  - NET_BIND_SERVICE  # Bind to ports < 1024"),
+            ("VPN container (needs NET_ADMIN)", "cap_drop:\n  - ALL\ncap_add:\n  - NET_ADMIN"),
+        ],
+        "related": ["CA802", "CA804"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/05-services/#cap_add",
+            "https://man7.org/linux/man-pages/man7/capabilities.7.html",
+        ],
+    },
+    "CA802": {
+        "why": (
+            "Privileged mode gives the container ALL host capabilities, access to all "
+            "devices, and the ability to modify kernel parameters. This is essentially "
+            "root on the host machine. A container escape in privileged mode means full "
+            "host compromise with zero additional effort."
+        ),
+        "scenarios": [
+            "An attacker in a privileged container mounts the host filesystem and reads /etc/shadow",
+            "A vulnerability in the app allows loading a malicious kernel module",
+            "The container can modify iptables rules and redirect network traffic",
+        ],
+        "fix_examples": [
+            ("Remove privileged mode", "# Remove this:\n#   privileged: true\n\n# If specific capabilities are needed:\ncap_add:\n  - SYS_ADMIN"),
+            ("Docker-in-Docker alternative (rootless)", "# Consider rootless Docker or Podman instead\n# Or use Docker socket mounting (still risky but less so):\nvolumes:\n  - /var/run/docker.sock:/var/run/docker.sock"),
+        ],
+        "related": ["CA801", "CA804"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/05-services/#privileged",
+            "https://docs.docker.com/engine/security/#linux-kernel-capabilities",
+        ],
+    },
+    "CA803": {
+        "why": (
+            "A read-only root filesystem prevents processes inside the container from "
+            "modifying the container's filesystem. This blocks many attack techniques "
+            "that rely on writing malicious files, scripts, or binaries to disk. "
+            "Services that need to write use tmpfs mounts for specific directories."
+        ),
+        "scenarios": [
+            "Malware writes a crypto miner binary to /tmp and executes it",
+            "An attacker modifies application config files to redirect traffic",
+            "A compromised process plants a backdoor in the container filesystem",
+        ],
+        "fix_examples": [
+            ("Nginx with read-only root", "read_only: true\ntmpfs:\n  - /var/cache/nginx\n  - /var/run"),
+            ("Redis with read-only root", "read_only: true\ntmpfs:\n  - /data"),
+            ("Traefik with read-only root", "read_only: true\ntmpfs:\n  - /tmp"),
+        ],
+        "related": ["CA801", "CA804"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/05-services/#read_only",
+        ],
+    },
+    "CA804": {
+        "why": (
+            "The no-new-privileges flag prevents processes inside the container from "
+            "gaining additional privileges via setuid/setgid binaries. Even if an "
+            "attacker finds a setuid root binary, they can't use it to escalate. "
+            "This is safe for almost all services and blocks a common escape vector."
+        ),
+        "scenarios": [
+            "An attacker exploits a setuid binary to gain root inside the container",
+            "A process uses setgid to access files it shouldn't have permission to read",
+            "Privilege escalation chain: app vulnerability → setuid binary → container root → host escape",
+        ],
+        "fix_examples": [
+            ("Add no-new-privileges", 'security_opt:\n  - "no-new-privileges:true"'),
+            ("Combine with other security options", 'security_opt:\n  - "no-new-privileges:true"\n  - "seccomp:default"'),
+        ],
+        "related": ["CA801", "CA802"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/05-services/#security_opt",
+            "https://docs.docker.com/engine/security/#linux-kernel-capabilities",
+        ],
+    },
+    "CA901": {
+        "why": (
+            "Docker Compose supports both resource reservations (minimum guaranteed) and "
+            "limits (maximum allowed). Defining one without the other creates unpredictable "
+            "behavior: reservations without limits mean a container can consume unlimited "
+            "resources beyond its guarantee, while limits without reservations mean the "
+            "container may be starved under memory pressure."
+        ),
+        "scenarios": [
+            ("Database with reservation only — can OOM the host", "deploy:\n  resources:\n    reservations:\n      memory: 1G\n    # No limits! Can use all host memory"),
+            ("App with limits but no reservation — starved under pressure", "deploy:\n  resources:\n    limits:\n      memory: 512M\n    # No reservation — may be killed first under pressure"),
+            ("Balanced configuration — both defined", "deploy:\n  resources:\n    reservations:\n      memory: 256M\n    limits:\n      memory: 512M"),
+        ],
+        "fix_examples": [
+            ("Add limits alongside reservations", "deploy:\n  resources:\n    reservations:\n      memory: 256M\n      cpus: '0.25'\n    limits:\n      memory: 512M\n      cpus: '0.5'"),
+            ("Add reservations alongside limits", "deploy:\n  resources:\n    reservations:\n      memory: 128M\n    limits:\n      memory: 512M"),
+        ],
+        "related": ["CA501", "CA502"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/deploy/#resources",
+        ],
+    },
+    "CA902": {
+        "why": (
+            "The restart policy 'always' will restart a container indefinitely, even "
+            "after manual stops and even when the container crashes immediately on startup. "
+            "A misconfigured service with restart: always creates a crash loop that consumes "
+            "resources and fills logs. 'unless-stopped' is usually what you actually want — "
+            "it restarts on crashes but respects manual docker stop commands."
+        ),
+        "scenarios": [
+            ("Crash loop — restarts 1000s of times per hour", "restart: always\n# Container has a bug and exits with code 1\n# Docker restarts it immediately, forever"),
+            ("Manual stop ignored", "restart: always\n# docker stop myapp\n# Docker immediately restarts it anyway!"),
+            ("Safe default — respects manual stops", "restart: unless-stopped\n# docker stop myapp → stays stopped\n# Host reboot → auto-restarts"),
+        ],
+        "fix_examples": [
+            ("Switch to unless-stopped", "restart: unless-stopped"),
+            ("Use deploy restart policy with limits", "deploy:\n  restart_policy:\n    condition: on-failure\n    max_attempts: 5\n    delay: 10s\n    window: 120s"),
+        ],
+        "related": ["CA203"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/05-services/#restart",
+            "https://docs.docker.com/compose/compose-file/deploy/#restart_policy",
+        ],
+    },
+    "CA903": {
+        "why": (
+            "Tmpfs mounts live entirely in RAM. Without a size limit, a runaway process "
+            "writing to a tmpfs mount can consume all available memory and cause an OOM kill "
+            "of the container or even the host. Always specify a size limit for tmpfs mounts "
+            "to cap memory usage."
+        ),
+        "scenarios": [
+            ("Unbounded tmpfs — potential OOM", "tmpfs:\n  - /tmp\n# A process writing to /tmp can fill all memory"),
+            ("Application writes large temp files", "tmpfs:\n  - /var/cache\n# Cache grows unbounded in RAM"),
+            ("Size-limited tmpfs — safe", "tmpfs:\n  - /tmp:size=100M\n# Capped at 100MB, writes fail after that"),
+        ],
+        "fix_examples": [
+            ("Inline size limit", "tmpfs:\n  - /tmp:size=100M"),
+            ("Long-form with explicit size", "volumes:\n  - type: tmpfs\n    target: /tmp\n    tmpfs:\n      size: 104857600  # 100MB"),
+        ],
+        "related": ["CA501"],
+        "learn_more": [
+            "https://docs.docker.com/compose/compose-file/05-services/#tmpfs",
+            "https://docs.docker.com/storage/tmpfs/",
+        ],
+    },
+    "CA904": {
+        "why": (
+            "By default, user IDs inside a container map directly to the same UIDs on the "
+            "host. This means root (UID 0) inside the container is root on the host — if a "
+            "container escape occurs, the attacker has full host access. User namespace "
+            "remapping maps container UIDs to unprivileged host UIDs, adding an extra "
+            "security boundary."
+        ),
+        "scenarios": [
+            ("Container root = host root", "# Default: no userns_mode\n# Root inside container has root on host\n# Container escape = game over"),
+            ("Service that needs host namespace", "# Docker-in-Docker, Portainer, Traefik\n# These need host user namespace — CA904 skips them"),
+            ("Remapped namespace — safer", "userns_mode: host\n# Container UIDs mapped to unprivileged host UIDs"),
+        ],
+        "fix_examples": [
+            ("Enable user namespace remapping", "userns_mode: host"),
+            ("Run as non-root user instead", "user: \"1000:1000\""),
+        ],
+        "related": ["CA801", "CA802"],
+        "learn_more": [
+            "https://docs.docker.com/engine/security/userns-remap/",
+            "https://docs.docker.com/compose/compose-file/05-services/#userns_mode",
+        ],
+    },
 }
 
 

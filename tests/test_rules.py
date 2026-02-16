@@ -434,7 +434,15 @@ class TestRuleRegistry:
     def test_all_rules_registered(self):
         rules = get_all_rules()
         rule_ids = {r.id for r in rules}
-        expected = {"CA001", "CA003", "CA101", "CA201", "CA202", "CA203", "CA301", "CA302", "CA303", "CA401", "CA402", "CA403", "CA601"}
+        expected = {
+            "CA001", "CA003", "CA101", "CA201", "CA202", "CA203",
+            "CA301", "CA302", "CA303", "CA401", "CA402", "CA403", "CA404",
+            "CA501", "CA502", "CA503", "CA504", "CA505", "CA601",
+            "CA701", "CA702",
+            "CA801", "CA802", "CA803", "CA804",
+            "CA304",
+            "CA901", "CA902", "CA903", "CA904",
+        }
         assert rule_ids == expected
 
     def test_get_rule_by_id(self):

@@ -25,10 +25,27 @@ _RULE_NAME_TO_ID: dict[str, str] = {
     "puid-pgid-mismatch": "CA401",
     "umask-inconsistent": "CA402",
     "missing-timezone": "CA403",
+    "duplicate-env-vars": "CA404",
     "untrusted-registry": "CA003",
+    "missing-memory-limit": "CA501",
+    "missing-cpu-limit": "CA502",
+    "resource-limits-unusual": "CA503",
+    "no-logging-config": "CA504",
+    "no-log-rotation": "CA505",
     "hardlink-path-mismatch": "CA601",
+    "prefer-named-volumes": "CA701",
+    "undefined-volume-ref": "CA702",
     "unreachable-dependency": "CA302",
     "isolated-service-ports": "CA303",
+    "dns-configuration": "CA304",
+    "no-capability-restrictions": "CA801",
+    "privileged-mode": "CA802",
+    "no-read-only-root": "CA803",
+    "no-new-privileges": "CA804",
+    "resource-requests-mismatch": "CA901",
+    "restart-policy-unlimited": "CA902",
+    "tmpfs-no-size-limit": "CA903",
+    "no-user-namespace": "CA904",
 }
 
 # Default rule severities
@@ -40,12 +57,29 @@ DEFAULT_RULES: dict[str, str] = {
     "CA202": "warning",
     "CA203": "warning",
     "CA301": "error",
+    "CA302": "error",
+    "CA303": "warning",
+    "CA304": "warning",
     "CA401": "error",
     "CA402": "warning",
     "CA403": "warning",
+    "CA404": "error",
+    "CA501": "warning",
+    "CA502": "warning",
+    "CA503": "info",
+    "CA504": "warning",
+    "CA505": "warning",
     "CA601": "warning",
-    "CA302": "error",
-    "CA303": "warning",
+    "CA701": "info",
+    "CA702": "error",
+    "CA801": "info",
+    "CA802": "error",
+    "CA803": "info",
+    "CA804": "info",
+    "CA901": "info",
+    "CA902": "info",
+    "CA903": "warning",
+    "CA904": "info",
 }
 
 
@@ -56,6 +90,7 @@ class Config:
     rules: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_RULES))
     ignore_patterns: list[str] = field(default_factory=list)
     ignore_services: list[str] = field(default_factory=list)
+    stack_path: str | None = None
 
     def is_rule_enabled(self, rule_id: str) -> bool:
         return self.rules.get(rule_id, "warning") != "off"
@@ -85,6 +120,9 @@ class Config:
                 # Accept both rule names and IDs
                 rule_id = _RULE_NAME_TO_ID.get(str(name_or_id), str(name_or_id).upper())
                 self.rules[rule_id] = str(severity)
+
+        if "stack_path" in other and other["stack_path"]:
+            self.stack_path = str(other["stack_path"])
 
         if "ignore" in other:
             ignore = other["ignore"]
