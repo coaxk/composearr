@@ -17,6 +17,11 @@ _GH_LEVELS = {
 }
 
 
+def _escape_annotation(text: str) -> str:
+    """Escape special characters for GitHub Actions annotations."""
+    return text.replace("%", "%25").replace("\n", "%0A").replace("\r", "%0D").replace("::", ": :")
+
+
 def format_github(result: ScanResult, root_path: str, options: FormatOptions | None = None) -> str:
     """Format scan results as GitHub Actions annotations.
 
@@ -28,9 +33,9 @@ def format_github(result: ScanResult, root_path: str, options: FormatOptions | N
         parts = [f"::{level} file={issue.file_path}"]
         if issue.line:
             parts[0] += f",line={issue.line}"
-        msg = f"{issue.rule_id}: {issue.message}"
+        msg = f"{issue.rule_id}: {_escape_annotation(issue.message)}"
         if issue.service:
-            msg += f" ({issue.service})"
+            msg += f" ({_escape_annotation(issue.service)})"
         lines.append(f"{parts[0]}::{msg}")
 
     return "\n".join(lines)

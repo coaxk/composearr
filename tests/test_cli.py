@@ -17,7 +17,8 @@ class TestAuditCommand:
         (tmp_path / "compose.yaml").write_text(
             "services:\n  web:\n    image: nginx:1.21\n    restart: unless-stopped\n"
             "    environment:\n      TZ: UTC\n"
-            "    healthcheck:\n      test: curl -f http://localhost\n      interval: 30s\n"
+            "    healthcheck:\n      test: curl -f http://localhost\n      interval: 30s\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path)])
         assert result.exit_code == 0
@@ -25,7 +26,8 @@ class TestAuditCommand:
     def test_errors_exit_1(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
             "services:\n  app:\n    image: nginx:1.21\n"
-            "    environment:\n      DB_PASSWORD: SuperSecretP@ssw0rd123!\n"
+            "    environment:\n      DB_PASSWORD: SuperSecretP@ssw0rd123!\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path)])
         assert result.exit_code == 1
@@ -36,35 +38,40 @@ class TestAuditCommand:
 
     def test_severity_filter(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--severity", "error"])
         assert result.exit_code == 0  # No errors (CA001 is warning)
 
     def test_rule_filter(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--rule", "CA001", "--severity", "warning"])
         assert "CA001" in result.output
 
     def test_ignore_rule(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--ignore", "CA001,CA201,CA203,CA403", "--severity", "warning"])
         assert "CA001" not in result.output
 
     def test_group_by_file(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--group-by", "file", "--severity", "warning"])
         assert result.exit_code == 0
 
     def test_group_by_rule(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--group-by", "rule", "--severity", "warning"])
         assert result.exit_code == 0

@@ -63,7 +63,7 @@ class TestLoadConfig:
 
     def test_loads_project_config(self, tmp_path: Path):
         cfg_file = tmp_path / ".composearr.yml"
-        cfg_file.write_text("rules:\n  CA001: off\n")
+        cfg_file.write_text("rules:\n  CA001: off\n", encoding="utf-8")
         config = load_config(tmp_path)
         assert not config.is_rule_enabled("CA001")
 

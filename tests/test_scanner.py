@@ -17,23 +17,23 @@ from composearr.scanner.env_resolver import load_env_file, discover_env_files, r
 class TestDiscovery:
     def test_finds_compose_yaml(self, tmp_path: Path):
         (tmp_path / "svc1").mkdir()
-        (tmp_path / "svc1" / "compose.yaml").write_text("services:\n  web:\n    image: nginx:1.0\n")
+        (tmp_path / "svc1" / "compose.yaml").write_text("services:\n  web:\n    image: nginx:1.0\n", encoding="utf-8")
         (tmp_path / "svc2").mkdir()
-        (tmp_path / "svc2" / "compose.yaml").write_text("services:\n  api:\n    image: node:18\n")
+        (tmp_path / "svc2" / "compose.yaml").write_text("services:\n  api:\n    image: node:18\n", encoding="utf-8")
 
         paths, managed = discover_compose_files(tmp_path)
         assert len(paths) == 2
         assert len(managed) == 0
 
     def test_finds_docker_compose_yml(self, tmp_path: Path):
-        (tmp_path / "docker-compose.yml").write_text("services:\n  web:\n    image: nginx:1.0\n")
+        (tmp_path / "docker-compose.yml").write_text("services:\n  web:\n    image: nginx:1.0\n", encoding="utf-8")
         paths, _ = discover_compose_files(tmp_path)
         assert len(paths) == 1
 
     def test_ignores_hidden_directories(self, tmp_path: Path):
         hidden = tmp_path / ".git"
         hidden.mkdir()
-        (hidden / "compose.yaml").write_text("services: {}")
+        (hidden / "compose.yaml").write_text("services: {}", encoding="utf-8")
         paths, _ = discover_compose_files(tmp_path)
         assert len(paths) == 0
 
@@ -50,7 +50,7 @@ class TestDiscovery:
     def test_recursive_discovery(self, tmp_path: Path):
         deep = tmp_path / "level1" / "level2"
         deep.mkdir(parents=True)
-        (deep / "compose.yaml").write_text("services:\n  web:\n    image: nginx:1.0\n")
+        (deep / "compose.yaml").write_text("services:\n  web:\n    image: nginx:1.0\n", encoding="utf-8")
         paths, _ = discover_compose_files(tmp_path)
         assert len(paths) == 1
 
@@ -61,7 +61,7 @@ class TestDiscovery:
 class TestParser:
     def test_parses_valid_compose(self, tmp_path: Path):
         f = tmp_path / "compose.yaml"
-        f.write_text("services:\n  web:\n    image: nginx:1.0\n")
+        f.write_text("services:\n  web:\n    image: nginx:1.0\n", encoding="utf-8")
         cf = parse_compose_file(f)
         assert cf.parse_error is None
         assert "web" in cf.services
@@ -70,13 +70,13 @@ class TestParser:
     def test_preserves_raw_content(self, tmp_path: Path):
         content = "# comment\nservices:\n  web:\n    image: nginx:1.0\n"
         f = tmp_path / "compose.yaml"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         cf = parse_compose_file(f)
         assert "# comment" in cf.raw_content
 
     def test_handles_malformed_yaml(self, tmp_path: Path):
         f = tmp_path / "compose.yaml"
-        f.write_text("services:\n  web:\n    image: nginx:latest\n  invalid syntax here\n")
+        f.write_text("services:\n  web:\n    image: nginx:latest\n  invalid syntax here\n", encoding="utf-8")
         cf = parse_compose_file(f)
         # Should either parse with error or handle gracefully
         # The parser wraps errors in parse_error field
@@ -84,14 +84,14 @@ class TestParser:
 
     def test_handles_empty_file(self, tmp_path: Path):
         f = tmp_path / "compose.yaml"
-        f.write_text("")
+        f.write_text("", encoding="utf-8")
         cf = parse_compose_file(f)
         assert cf is not None
         assert cf.services == {}
 
     def test_handles_comments_only(self, tmp_path: Path):
         f = tmp_path / "compose.yaml"
-        f.write_text("# just a comment\n# another one\n")
+        f.write_text("# just a comment\n# another one\n", encoding="utf-8")
         cf = parse_compose_file(f)
         assert cf is not None
         assert cf.services == {}
@@ -104,7 +104,7 @@ class TestParser:
     def test_multiple_services(self, tmp_path: Path):
         content = "services:\n  web:\n    image: nginx:1.0\n  api:\n    image: node:18\n  db:\n    image: postgres:15\n"
         f = tmp_path / "compose.yaml"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         cf = parse_compose_file(f)
         assert len(cf.services) == 3
 
@@ -132,13 +132,13 @@ class TestFindLineNumber:
 class TestEnvResolver:
     def test_loads_env_file(self, tmp_path: Path):
         env_file = tmp_path / ".env"
-        env_file.write_text("PUID=1000\nPGID=1000\nTZ=Australia/Sydney\n")
+        env_file.write_text("PUID=1000\nPGID=1000\nTZ=Australia/Sydney\n", encoding="utf-8")
         env_vars = load_env_file(env_file)
         assert env_vars["PUID"] == "1000"
         assert env_vars["TZ"] == "Australia/Sydney"
 
     def test_discovers_env_files(self, tmp_path: Path):
-        (tmp_path / ".env").write_text("KEY=value\n")
+        (tmp_path / ".env").write_text("KEY=value\n", encoding="utf-8")
         files = discover_env_files(tmp_path)
         assert len(files) >= 1
 

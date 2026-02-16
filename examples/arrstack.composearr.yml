@@ -1,0 +1,26 @@
+# ComposeArr config optimized for *arr media server stacks
+# (Sonarr, Radarr, Prowlarr, Bazarr, Lidarr, etc.)
+# Place as .composearr.yml in your Docker stack root
+
+severity: warning
+
+rules:
+  CA001: warning    # Pin image tags for reproducible deployments
+  CA101: error      # Never hardcode API keys in compose files
+  CA201: warning    # Healthchecks help Organizr/homepage dashboards
+  CA203: error      # Restart policies critical — services must survive reboots
+  CA301: error      # Port conflicts break reverse proxy routing
+  CA401: error      # PUID/PGID mismatch breaks hardlinks and file permissions
+  CA402: warning    # UMASK=002 needed for hardlinks (TRaSH Guides)
+  CA403: warning    # Timezone sync keeps activity logs readable
+  CA601: warning    # Unified /data mount enables instant hardlinks
+
+ignore_paths:
+  - "**/backup/**"
+  - "**/old/**"
+
+trusted_registries:
+  - docker.io
+  - ghcr.io
+  - lscr.io
+  - cr.hotio.dev

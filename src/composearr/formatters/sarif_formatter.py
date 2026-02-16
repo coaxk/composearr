@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from composearr import __version__
@@ -51,7 +52,7 @@ def format_sarif(result: ScanResult, root_path: str, options: FormatOptions | No
                 {
                     "physicalLocation": {
                         "artifactLocation": {
-                            "uri": issue.file_path.replace("\\", "/"),
+                            "uri": Path(issue.file_path).as_posix(),
                         },
                     },
                 }

@@ -1,0 +1,24 @@
+# ComposeArr config for a typical homelab stack
+# Place as .composearr.yml in your Docker stack root
+
+severity: warning
+
+rules:
+  CA001: warning    # Warn on :latest tags
+  CA003: off        # Don't flag registries — homelabs use many sources
+  CA101: error      # Secrets in compose files are critical
+  CA201: info       # Healthchecks nice-to-have, not essential
+  CA203: warning    # Restart policies recommended
+  CA301: error      # Port conflicts break services
+  CA401: error      # PUID/PGID must match for file permissions
+  CA403: warning    # Timezone consistency matters for logs
+
+ignore_paths:
+  - "**/test/**"
+  - "**/backup/**"
+
+trusted_registries:
+  - docker.io
+  - ghcr.io
+  - lscr.io
+  - gcr.io

@@ -247,11 +247,11 @@ class TestCA301:
     def test_detects_port_conflict(self, tmp_path: Path):
         f1 = tmp_path / "svc1" / "compose.yaml"
         f1.parent.mkdir()
-        f1.write_text("services:\n  sonarr:\n    ports:\n      - '8080:8989'\n")
+        f1.write_text("services:\n  sonarr:\n    ports:\n      - '8080:8989'\n", encoding="utf-8")
 
         f2 = tmp_path / "svc2" / "compose.yaml"
         f2.parent.mkdir()
-        f2.write_text("services:\n  radarr:\n    ports:\n      - '8080:7878'\n")
+        f2.write_text("services:\n  radarr:\n    ports:\n      - '8080:7878'\n", encoding="utf-8")
 
         cf1 = parse_compose_file(f1)
         cf2 = parse_compose_file(f2)
@@ -264,11 +264,11 @@ class TestCA301:
     def test_no_conflict_different_ports(self, tmp_path: Path):
         f1 = tmp_path / "svc1" / "compose.yaml"
         f1.parent.mkdir()
-        f1.write_text("services:\n  sonarr:\n    ports:\n      - '8989:8989'\n")
+        f1.write_text("services:\n  sonarr:\n    ports:\n      - '8989:8989'\n", encoding="utf-8")
 
         f2 = tmp_path / "svc2" / "compose.yaml"
         f2.parent.mkdir()
-        f2.write_text("services:\n  radarr:\n    ports:\n      - '7878:7878'\n")
+        f2.write_text("services:\n  radarr:\n    ports:\n      - '7878:7878'\n", encoding="utf-8")
 
         cf1 = parse_compose_file(f1)
         cf2 = parse_compose_file(f2)
@@ -279,7 +279,7 @@ class TestCA301:
 
     def test_no_ports(self, tmp_path: Path):
         f1 = tmp_path / "compose.yaml"
-        f1.write_text("services:\n  web:\n    image: nginx:1.0\n")
+        f1.write_text("services:\n  web:\n    image: nginx:1.0\n", encoding="utf-8")
         cf1 = parse_compose_file(f1)
         rule = get_rule("CA301")
         issues = rule.check_project([cf1])
@@ -293,11 +293,11 @@ class TestCA401:
     def test_detects_mismatch(self, tmp_path: Path):
         f1 = tmp_path / "svc1" / "compose.yaml"
         f1.parent.mkdir()
-        f1.write_text("services:\n  sonarr:\n    environment:\n      PUID: '1000'\n")
+        f1.write_text("services:\n  sonarr:\n    environment:\n      PUID: '1000'\n", encoding="utf-8")
 
         f2 = tmp_path / "svc2" / "compose.yaml"
         f2.parent.mkdir()
-        f2.write_text("services:\n  qbit:\n    environment:\n      PUID: '568'\n")
+        f2.write_text("services:\n  qbit:\n    environment:\n      PUID: '568'\n", encoding="utf-8")
 
         cf1 = parse_compose_file(f1)
         cf2 = parse_compose_file(f2)
@@ -311,11 +311,11 @@ class TestCA401:
     def test_no_mismatch(self, tmp_path: Path):
         f1 = tmp_path / "svc1" / "compose.yaml"
         f1.parent.mkdir()
-        f1.write_text("services:\n  sonarr:\n    environment:\n      PUID: '1000'\n")
+        f1.write_text("services:\n  sonarr:\n    environment:\n      PUID: '1000'\n", encoding="utf-8")
 
         f2 = tmp_path / "svc2" / "compose.yaml"
         f2.parent.mkdir()
-        f2.write_text("services:\n  radarr:\n    environment:\n      PUID: '1000'\n")
+        f2.write_text("services:\n  radarr:\n    environment:\n      PUID: '1000'\n", encoding="utf-8")
 
         cf1 = parse_compose_file(f1)
         cf2 = parse_compose_file(f2)
@@ -332,11 +332,11 @@ class TestCA402:
     def test_detects_inconsistency(self, tmp_path: Path):
         f1 = tmp_path / "svc1" / "compose.yaml"
         f1.parent.mkdir()
-        f1.write_text("services:\n  sonarr:\n    environment:\n      UMASK: '022'\n")
+        f1.write_text("services:\n  sonarr:\n    environment:\n      UMASK: '022'\n", encoding="utf-8")
 
         f2 = tmp_path / "svc2" / "compose.yaml"
         f2.parent.mkdir()
-        f2.write_text("services:\n  qbit:\n    environment:\n      UMASK: '002'\n")
+        f2.write_text("services:\n  qbit:\n    environment:\n      UMASK: '002'\n", encoding="utf-8")
 
         cf1 = parse_compose_file(f1)
         cf2 = parse_compose_file(f2)
@@ -348,11 +348,11 @@ class TestCA402:
     def test_consistent_umask(self, tmp_path: Path):
         f1 = tmp_path / "svc1" / "compose.yaml"
         f1.parent.mkdir()
-        f1.write_text("services:\n  sonarr:\n    environment:\n      UMASK: '002'\n")
+        f1.write_text("services:\n  sonarr:\n    environment:\n      UMASK: '002'\n", encoding="utf-8")
 
         f2 = tmp_path / "svc2" / "compose.yaml"
         f2.parent.mkdir()
-        f2.write_text("services:\n  radarr:\n    environment:\n      UMASK: '002'\n")
+        f2.write_text("services:\n  radarr:\n    environment:\n      UMASK: '002'\n", encoding="utf-8")
 
         cf1 = parse_compose_file(f1)
         cf2 = parse_compose_file(f2)
@@ -394,7 +394,8 @@ class TestCA601:
         f = tmp_path / "compose.yaml"
         f.write_text(
             "services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:latest\n"
-            "    volumes:\n      - /mnt/media:/media\n      - /mnt/dl:/downloads\n"
+            "    volumes:\n      - /mnt/media:/media\n      - /mnt/dl:/downloads\n",
+            encoding="utf-8",
         )
         cf = parse_compose_file(f)
         rule = get_rule("CA601")
@@ -405,7 +406,8 @@ class TestCA601:
         f = tmp_path / "compose.yaml"
         f.write_text(
             "services:\n  sonarr:\n    image: lscr.io/linuxserver/sonarr:latest\n"
-            "    volumes:\n      - /mnt/data:/data\n"
+            "    volumes:\n      - /mnt/data:/data\n",
+            encoding="utf-8",
         )
         cf = parse_compose_file(f)
         rule = get_rule("CA601")
@@ -416,7 +418,8 @@ class TestCA601:
         f = tmp_path / "compose.yaml"
         f.write_text(
             "services:\n  nginx:\n    image: nginx:1.21\n"
-            "    volumes:\n      - /mnt/media:/media\n"
+            "    volumes:\n      - /mnt/media:/media\n",
+            encoding="utf-8",
         )
         cf = parse_compose_file(f)
         rule = get_rule("CA601")

@@ -1,0 +1,27 @@
+# ComposeArr config for production / CI enforcement
+# Strict settings — all rules at highest useful severity
+# Place as .composearr.yml in your project root
+
+severity: error
+
+rules:
+  CA001: error      # Never deploy :latest to production
+  CA003: warning    # Verify all registries are trusted
+  CA101: error      # No secrets in version control
+  CA201: error      # Healthchecks required for orchestration
+  CA202: error      # Fake healthchecks defeat monitoring
+  CA203: error      # Restart policies required for uptime
+  CA301: error      # Port conflicts are deployment failures
+  CA302: error      # Unreachable dependencies are config bugs
+  CA303: error      # Isolated services with ports are misconfigs
+  CA401: error      # Permission mismatches cause runtime failures
+  CA403: error      # Missing TZ causes log timestamp issues
+
+ignore_paths:
+  - "**/test/**"
+  - "**/dev/**"
+  - "**/staging/**"
+
+trusted_registries:
+  - docker.io
+  - ghcr.io

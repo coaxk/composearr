@@ -15,12 +15,12 @@ class TestPlatformDetect:
         komodo_path = tmp_path / "komodo" / "periphery" / "repos" / "myapp"
         komodo_path.mkdir(parents=True)
         managed_file = komodo_path / "compose.yaml"
-        managed_file.write_text("services: {}")
+        managed_file.write_text("services: {}", encoding="utf-8")
 
         canonical_path = tmp_path / "myapp"
         canonical_path.mkdir()
         canonical_file = canonical_path / "compose.yaml"
-        canonical_file.write_text("services: {}")
+        canonical_file.write_text("services: {}", encoding="utf-8")
 
         all_paths = [canonical_file, managed_file]
         canonical, managed = classify_paths(all_paths, tmp_path)
@@ -34,7 +34,7 @@ class TestPlatformDetect:
         dockge_path = tmp_path / "dockge" / "stacks" / "myapp"
         dockge_path.mkdir(parents=True)
         managed_file = dockge_path / "compose.yaml"
-        managed_file.write_text("services: {}")
+        managed_file.write_text("services: {}", encoding="utf-8")
 
         all_paths = [managed_file]
         canonical, managed = classify_paths(all_paths, tmp_path)
@@ -47,7 +47,7 @@ class TestPlatformDetect:
         svc = tmp_path / "myservice"
         svc.mkdir()
         f = svc / "compose.yaml"
-        f.write_text("services: {}")
+        f.write_text("services: {}", encoding="utf-8")
 
         canonical, managed = classify_paths([f], tmp_path)
 
@@ -59,7 +59,7 @@ class TestPlatformDetect:
         portainer_path = tmp_path / "portainer" / "compose" / "myapp"
         portainer_path.mkdir(parents=True)
         managed_file = portainer_path / "compose.yaml"
-        managed_file.write_text("services: {}")
+        managed_file.write_text("services: {}", encoding="utf-8")
 
         all_paths = [managed_file]
         canonical, managed = classify_paths(all_paths, tmp_path)

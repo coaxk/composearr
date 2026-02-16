@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from composearr.scanner.platform_detect import classify_paths
+from composearr.security.input_validator import MAX_COMPOSE_FILES, MAX_SCAN_DEPTH
 
 COMPOSE_FILENAMES = {
     "compose.yaml",
@@ -71,9 +72,28 @@ def discover_compose_files(root_path: Path) -> tuple[list[Path], dict[str, list[
         if path.name.lower() in COMPOSE_FILENAMES and path.is_file():
             rel = path.relative_to(root)
             parts = rel.parts
+
+            # Skip hidden directories
             if any(p.startswith(".") for p in parts[:-1]):
                 continue
+
+            # Enforce max scan depth
+            if len(parts) > MAX_SCAN_DEPTH:
+                continue
+
+            # Skip symlinks that point outside the root
+            try:
+                resolved = path.resolve()
+                if not str(resolved).startswith(str(root)):
+                    continue
+            except (OSError, RuntimeError):
+                continue
+
             found.append(path)
+
+            # Enforce max file count
+            if len(found) >= MAX_COMPOSE_FILES:
+                break
 
     all_sorted = sorted(found, key=lambda p: str(p.relative_to(root)))
     return classify_paths(all_sorted, root)

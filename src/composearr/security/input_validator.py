@@ -50,6 +50,13 @@ def validate_file_size(path: Path) -> tuple[bool, str]:
     return True, ""
 
 
+# Maximum number of lines in a compose file
+MAX_YAML_LINES = 10_000
+
+# Maximum nesting depth indicator (repeated spaces)
+MAX_NESTING_DEPTH = 50
+
+
 def validate_yaml_content(content: str) -> tuple[bool, str]:
     """Basic validation of YAML content before parsing.
 
@@ -58,5 +65,15 @@ def validate_yaml_content(content: str) -> tuple[bool, str]:
     # Check for null bytes (binary file)
     if "\x00" in content:
         return False, "File appears to be binary (contains null bytes)"
+
+    # Check for excessive line count
+    line_count = content.count("\n") + 1
+    if line_count > MAX_YAML_LINES:
+        return False, f"File has {line_count} lines (limit: {MAX_YAML_LINES})"
+
+    # Check for YAML alias bombs (e.g., billion laughs attack)
+    alias_count = content.count("*") + content.count("<<:")
+    if alias_count > 100:
+        return False, "File contains excessive YAML aliases (potential alias bomb)"
 
     return True, ""

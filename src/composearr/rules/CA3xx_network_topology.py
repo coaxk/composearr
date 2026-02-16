@@ -153,6 +153,7 @@ class UnreachableDependency(BaseRule):
     def check_project(self, compose_files: list[ComposeFile]) -> list[LintIssue]:
         graph = build_network_graph(compose_files)
         issues: list[LintIssue] = []
+        raw_by_path = {str(cf.path): cf.raw_content for cf in compose_files}
 
         for svc_name, info in graph["services"].items():
             for dep in info["depends_on"]:
@@ -176,7 +177,8 @@ class UnreachableDependency(BaseRule):
                     detail = " | ".join(detail_parts) if detail_parts else "different networks"
 
                     # Find line
-                    line = find_line_number(info["file"], "depends_on")
+                    raw = raw_by_path.get(info["file"], "")
+                    line = find_line_number(raw, "depends_on")
 
                     # Suggest fix
                     if dep_nets:
@@ -185,9 +187,14 @@ class UnreachableDependency(BaseRule):
                     else:
                         fix = f"Put both services on a shared network:\n    networks:\n      - shared"
 
+                    dep_file = graph["services"][dep]["file"]
+                    file_hint = ""
+                    if dep_file != info["file"]:
+                        file_hint = f" (defined in {dep_file})"
+
                     issues.append(
                         self._make_issue(
-                            f"{svc_name} depends on {dep} but cannot reach it ({detail})",
+                            f"'{svc_name}' declares depends_on: {dep}{file_hint} but cannot reach it — {detail}",
                             info["file"],
                             line=line,
                             service=svc_name,
@@ -217,14 +224,23 @@ class IsolatedServiceWithPorts(BaseRule):
                 mode = _get_network_mode(svc_config)
                 ports = svc_config.get("ports", [])
                 if mode == "none" and ports:
-                    line = find_line_number(str(cf.path), "network_mode")
+                    line = find_line_number(cf.raw_content, "network_mode")
+                    port_list = ", ".join(str(p) for p in ports[:3])
+                    if len(ports) > 3:
+                        port_list += f" (+{len(ports) - 3} more)"
                     issues.append(
                         self._make_issue(
-                            f"{svc_name} has network_mode: none but exposes ports — ports are unreachable",
+                            (
+                                f"{svc_name} has network_mode: none but exposes ports ({port_list}) — "
+                                f"network_mode: none disables all networking, making these ports unreachable from any host or container"
+                            ),
                             str(cf.path),
                             line=line,
                             service=svc_name,
-                            suggested_fix="Remove ports or change network_mode",
+                            suggested_fix=(
+                                "Either remove the ports section (if this service truly needs no networking), "
+                                "or change network_mode to 'bridge' or remove it entirely to allow port binding"
+                            ),
                         )
                     )
         return issues

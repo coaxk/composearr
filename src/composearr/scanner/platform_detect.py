@@ -36,9 +36,9 @@ def classify_paths(
 
     for path in paths:
         try:
-            rel = str(path.relative_to(root)).replace("\\", "/").lower()
+            rel = path.relative_to(root).as_posix().lower()
         except ValueError:
-            rel = str(path).replace("\\", "/").lower()
+            rel = path.as_posix().lower()
 
         platform = _detect_platform(rel)
         if platform:

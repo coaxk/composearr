@@ -20,6 +20,7 @@ from composearr.formatters.progress import RichProgressReporter
 from composearr.formatters.sarif_formatter import format_sarif
 from composearr.models import FormatOptions, Severity, SEVERITY_RANK
 from composearr.rules.base import get_all_rules
+from composearr.security.input_validator import validate_scan_path
 
 app = typer.Typer(
     name="composearr",
@@ -39,6 +40,14 @@ C_INFO = "#3b82f6"
 C_TEXT = "#fafafa"
 C_OK = "#22c55e"
 C_BORDER = "#27272a"
+
+
+def _validate_path(root: Path, raw: str | None) -> None:
+    """Validate a scan path and exit with error if invalid."""
+    ok, err = validate_scan_path(root)
+    if not ok:
+        console.print(f"[{C_ERR}]Error:[/] {err}")
+        raise typer.Exit(code=2)
 
 
 WHALE_ART = (
@@ -98,9 +107,7 @@ def audit(
     else:
         root = Path(path).resolve()
 
-    if not root.is_dir():
-        console.print(f"[{C_ERR}]Error:[/] {path} is not a directory")
-        raise typer.Exit(code=2)
+    _validate_path(root, path)
 
     # Parse severity
     try:
@@ -204,9 +211,7 @@ def fix(
     else:
         root = Path(path).resolve()
 
-    if not root.is_dir():
-        console.print(f"[{C_ERR}]Error:[/] {path} is not a directory")
-        raise typer.Exit(code=2)
+    _validate_path(root, path)
 
     # Configure network features
     from composearr.rules.CA0xx_images import set_network_enabled
@@ -297,9 +302,7 @@ def ports(
     else:
         root = Path(path).resolve()
 
-    if not root.is_dir():
-        console.print(f"[{C_ERR}]Error:[/] {path} is not a directory")
-        raise typer.Exit(code=2)
+    _validate_path(root, path)
 
     import sys as _sys
     if _sys.stdout.isatty() and output_format == "console":
@@ -349,9 +352,7 @@ def topology(
     else:
         root = Path(path).resolve()
 
-    if not root.is_dir():
-        console.print(f"[{C_ERR}]Error:[/] {path} is not a directory")
-        raise typer.Exit(code=2)
+    _validate_path(root, path)
 
     if output_format == "json":
         content = format_topology_json(root)

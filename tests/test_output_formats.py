@@ -106,6 +106,38 @@ class TestGithubFormat:
         output = format_github(result, "/test")
         assert output == ""
 
+    def test_escapes_double_colon(self):
+        result = ScanResult()
+        result.issues = [
+            LintIssue(
+                rule_id="CA302",
+                rule_name="unreachable-dependency",
+                severity=Severity.ERROR,
+                message="'app' declares depends_on::db but cannot reach it",
+                file_path="app/compose.yaml",
+                line=5,
+            ),
+        ]
+        output = format_github(result, "/test")
+        # :: in message must be escaped to prevent annotation injection
+        assert "depends_on: :db" in output
+        assert "depends_on::db" not in output
+
+    def test_escapes_newlines(self):
+        result = ScanResult()
+        result.issues = [
+            LintIssue(
+                rule_id="CA401",
+                rule_name="puid-pgid-mismatch",
+                severity=Severity.ERROR,
+                message="PUID mismatch:\n  line1\n  line2",
+                file_path="app/compose.yaml",
+            ),
+        ]
+        output = format_github(result, "/test")
+        assert "\n  line1" not in output
+        assert "%0A" in output
+
 
 class TestSarifFormat:
     def test_valid_sarif(self):
@@ -158,7 +190,8 @@ class TestSarifFormat:
 class TestCLIFormatFlag:
     def test_json_flag(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--format", "json"])
         parsed = json.loads(result.output)
@@ -166,14 +199,16 @@ class TestCLIFormatFlag:
 
     def test_github_flag(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--format", "github"])
         assert "::" in result.output or result.output.strip() == ""
 
     def test_sarif_flag(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:latest\n"
+            "services:\n  web:\n    image: nginx:latest\n",
+            encoding="utf-8",
         )
         result = runner.invoke(app, ["audit", str(tmp_path), "--format", "sarif"])
         parsed = json.loads(result.output)

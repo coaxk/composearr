@@ -133,7 +133,10 @@ def run_audit(
 
     t0 = time.perf_counter()
     for i, rule in enumerate(project_rules):
-        result.cross_file_issues.extend(rule.check_project(parseable))
+        try:
+            result.cross_file_issues.extend(rule.check_project(parseable))
+        except Exception:
+            pass  # Rule failure should not stop the audit
         if progress:
             progress.on_progress("cross_file", i + 1, rule.id)
 

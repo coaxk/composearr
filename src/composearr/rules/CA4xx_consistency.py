@@ -70,13 +70,15 @@ class PuidPgidMismatch(BaseRule):
 
         # Suggest the majority value
         majority_puid = max(puid_groups.items(), key=lambda x: len(x[1]))[0]
-        minority_services = [
-            svc for puid_val, services in puid_groups.items()
+        minority_details = [
+            f"{svc} (currently PUID={puid_val})"
+            for puid_val, services in puid_groups.items()
             if puid_val != majority_puid for svc in services
         ]
         fix = (
-            f"Standardize to PUID={majority_puid} (used by most services). "
-            f"Update: {', '.join(minority_services[:5])}"
+            f"Standardize to PUID={majority_puid} (used by majority of services). "
+            f"Services to update:\n"
+            + "\n".join(f"  - {detail}" for detail in minority_details[:5])
         )
 
         return [
@@ -145,6 +147,23 @@ class MissingTimezone(BaseRule):
         tz = _get_env_value(service_config, "TZ")
         if tz is None:
             line = find_line_number(compose_file.raw_content, f"{service_name}:")
+
+            # Try to detect TZ from sibling services in the same compose file
+            detected_tz = None
+            for other_name, other_config in compose_file.services.items():
+                if other_name == service_name:
+                    continue
+                other_cfg = dict(other_config) if hasattr(other_config, "items") else {}
+                other_tz = _get_env_value(other_cfg, "TZ")
+                if other_tz:
+                    detected_tz = other_tz
+                    break
+
+            if detected_tz:
+                tz_suggestion = f"{detected_tz}  # matching other services"
+            else:
+                tz_suggestion = "Etc/UTC"
+
             return [
                 self._make_issue(
                     "TZ environment variable not set",
@@ -152,7 +171,7 @@ class MissingTimezone(BaseRule):
                     line=line,
                     service=service_name,
                     fix_available=True,
-                    suggested_fix="Add to your environment block:\n    TZ: Australia/Sydney  # Set to your timezone",
+                    suggested_fix=f"Add TZ to your environment block:\n    environment:\n      TZ: {tz_suggestion}",
                 )
             ]
         return []

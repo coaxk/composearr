@@ -136,13 +136,25 @@ def _latest_semver(tags: list[str], prefix: str = "") -> str:
     return ""
 
 
+_cache: dict[str, TagSuggestion | None] = {}
+
+
+def clear_cache() -> None:
+    """Clear the tag analysis cache."""
+    _cache.clear()
+
+
 def analyze_image(image: str) -> TagSuggestion | None:
     """Analyze an image and suggest the best tag.
 
     Returns None if network features aren't available or analysis fails.
+    Results are cached per image string to avoid redundant lookups.
     """
     if not HAS_NETWORK:
         return None
+
+    if image in _cache:
+        return _cache[image]
 
     try:
         registry, repo, current_tag = _parse_image(image)
@@ -154,12 +166,15 @@ def analyze_image(image: str) -> TagSuggestion | None:
         if not recommended:
             return None
 
-        return TagSuggestion(
+        result = TagSuggestion(
             image=image,
             current_tag=current_tag,
             recommended_tag=recommended,
             reasoning=reasoning,
         )
+        _cache[image] = result
+        return result
     except Exception:
         # Never crash on network/parsing errors
+        _cache[image] = None
         return None

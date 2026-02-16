@@ -46,7 +46,7 @@ class PortConflict(BaseRule):
             if len(users) <= 1:
                 continue
 
-            services_str = ", ".join(f"{svc} ({path.split('/')[-2] if '/' in path else path})" for svc, path in users)
+            services_str = ", ".join(f"{svc} (in {path})" for svc, path in users)
             next_port = self._find_next_port(port, all_used_ports)
             fix = f"Change one service to port {next_port}:\n    ports:\n      - \"{next_port}:{port}\""
             issues.append(

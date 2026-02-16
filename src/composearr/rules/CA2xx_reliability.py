@@ -85,13 +85,23 @@ class NoFakeHealthcheck(BaseRule):
         for pattern in self._FAKE_PATTERNS:
             if test_str == pattern or test_str.startswith(f"{pattern} "):
                 line = find_line_number(compose_file.raw_content, "test:")
+
+                # Build a replacement suggestion based on service context
+                image = service_config.get("image", "")
+                ports = service_config.get("ports", [])
+                replacement = suggest_healthcheck_text(service_name, image, ports)
+                if replacement:
+                    fix = f"Replace '{test_str}' with a real check:\n    test: {replacement}"
+                else:
+                    fix = f"Replace '{test_str}' with a real check (curl, wget, pgrep, or nc)"
+
                 return [
                     self._make_issue(
-                        f"Healthcheck always passes ({test_str})",
+                        f"Healthcheck uses '{test_str}' which always passes — it will never detect failures",
                         str(compose_file.path),
                         line=line,
                         service=service_name,
-                        suggested_fix="Use a real check: curl, wget, pgrep, or nc",
+                        suggested_fix=fix,
                     )
                 ]
 
@@ -121,7 +131,11 @@ class RequireRestartPolicy(BaseRule):
                     line=line,
                     service=service_name,
                     fix_available=True,
-                    suggested_fix="Add to your service:\n    restart: unless-stopped",
+                    suggested_fix=(
+                        f"Add to your '{service_name}' service definition:\n"
+                        f"  {service_name}:\n"
+                        f"    restart: unless-stopped"
+                    ),
                 )
             ]
         return []

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -10,6 +11,7 @@ from pathlib import Path
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from rich.console import Console
+from rich.text import Text
 
 from composearr import __version__
 from composearr.engine import run_audit
@@ -37,7 +39,8 @@ _EXIT = "__exit__"
 
 # ── ASCII Art ──────────────────────────────────────────────────
 
-ROLL_SAFE_ART = (
+# Plain-text fallback for terminals without true-color support
+_ROLL_SAFE_FALLBACK = (
     f"[{C_MUTED}]"
     "\n                         :                ~~;::=~;,~=;,;=:,,,=%#%@@%%##**"
     "\n                         :.               ~~;::=~;,-=-:;=:,,,~~~=+=+++++="
@@ -77,7 +80,23 @@ ROLL_SAFE_ART = (
     "\n[/]"
 )
 
-WHALE_ART = (
+
+def _load_ansi_art(console: Console) -> Text | str:
+    """Load true-color ANSI art if terminal supports it, otherwise fallback."""
+    # Check if terminal supports true-color (24-bit)
+    color_system = console.color_system
+    if color_system != "truecolor":
+        return _ROLL_SAFE_FALLBACK
+
+    try:
+        ref = importlib.resources.files("composearr") / "assets" / "rollsafe.ansi"
+        raw = ref.read_text(encoding="utf-8")
+        return Text.from_ansi(raw)
+    except Exception:
+        return _ROLL_SAFE_FALLBACK
+
+# Plain-text fallback whale for terminals without true-color support
+_WHALE_FALLBACK = (
     f"[{C_INFO}]"
     "\n                    ##         ."
     "\n              ## ## ##        =="
@@ -89,6 +108,59 @@ WHALE_ART = (
     "\n          \\____\\_______/"
     "\n[/]"
 )
+
+
+def _load_whale_art(console: Console) -> Text | str:
+    """Load true-color whale ANSI art if available, otherwise fallback."""
+    color_system = console.color_system
+    if color_system != "truecolor":
+        return _WHALE_FALLBACK
+
+    try:
+        ref = importlib.resources.files("composearr") / "assets" / "whale.ansi"
+        raw = ref.read_text(encoding="utf-8")
+        return Text.from_ansi(raw)
+    except Exception:
+        return _WHALE_FALLBACK
+
+
+def _render_figlet_title(console: Console) -> str | None:
+    """Render ComposeArr version banner in Big Money-nw FIGlet font.
+
+    Returns Rich markup string, or None if terminal is too narrow.
+    """
+    try:
+        import pyfiglet
+    except ImportError:
+        return None
+
+    term_width = console.width or 80
+    title_text = f"ComposeArr v{__version__}"
+
+    # Generate with wide width, check if it fits
+    art = pyfiglet.figlet_format(title_text, font="big_money-nw", width=300)
+    lines = [l.rstrip() for l in art.split("\n")]
+    while lines and not lines[-1]:
+        lines.pop()
+
+    max_width = max((len(l) for l in lines), default=0)
+
+    if max_width > term_width:
+        # Try just "ComposeArr" if full title is too wide
+        art = pyfiglet.figlet_format("ComposeArr", font="big_money-nw", width=300)
+        lines = [l.rstrip() for l in art.split("\n")]
+        while lines and not lines[-1]:
+            lines.pop()
+        max_width = max((len(l) for l in lines), default=0)
+
+        if max_width > term_width:
+            return None  # Terminal too narrow for any FIGlet
+
+        # Append version below in plain text
+        lines.append(f"  v{__version__}")
+
+    joined = "\n".join(lines)
+    return f"[{C_TEAL}]{joined}[/]"
 
 
 def _nav_choices() -> list[Choice]:
@@ -240,11 +312,18 @@ def launch_tui() -> None:
     console = make_console()
     session: dict = {}
 
-    # Welcome screen with ASCII art
+    # Welcome screen with art (true-color ANSI if supported, ASCII fallback)
+    art = _load_ansi_art(console)
     console.print()
-    console.print(ROLL_SAFE_ART)
+    console.print(art)
     console.print()
-    console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
+
+    # Big Money-nw FIGlet title (adapts to terminal width)
+    title_art = _render_figlet_title(console)
+    if title_art:
+        console.print(title_art)
+    else:
+        console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
     console.print(f"  [{C_MUTED}]Docker Compose Hygiene Linter[/]")
     console.print()
 
@@ -265,7 +344,11 @@ def launch_tui() -> None:
         ).execute()
 
         if action == _EXIT:
-            console.print(f"\n  [{C_MUTED}]Goodbye![/]\n")
+            whale = _load_whale_art(console)
+            console.print()
+            console.print(whale)
+            console.print()
+            console.print(f"  [{C_MUTED}]Goodbye![/]\n")
             break
         elif action == "quick":
             _tui_quick_audit(console, session)

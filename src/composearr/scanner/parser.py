@@ -29,7 +29,7 @@ def parse_compose_file(file_path: Path) -> ComposeFile:
 
     try:
         raw = file_path.read_text(encoding="utf-8")
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         cf.parse_error = f"Cannot read file: {e}"
         return cf
 

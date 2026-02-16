@@ -74,7 +74,7 @@ def apply_fixes(
                     result.skipped += 1
 
             if modified:
-                with open(path, "w", encoding="utf-8") as f:
+                with open(path, "w", encoding="utf-8", newline="") as f:
                     yaml.dump(data, f)
 
         except Exception:

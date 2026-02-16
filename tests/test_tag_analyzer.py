@@ -10,6 +10,7 @@ from composearr.analyzers.tag_analyzer import (
     _parse_image,
     _recommend_tag,
     analyze_image,
+    clear_cache,
 )
 
 
@@ -77,6 +78,9 @@ class TestRecommendTag:
 
 
 class TestAnalyzeImage:
+    def setup_method(self):
+        clear_cache()
+
     @patch("composearr.analyzers.tag_analyzer._fetch_tags")
     def test_successful_analysis(self, mock_fetch):
         mock_fetch.return_value = ["latest", "1.0.0", "1.1.0", "2.0.0"]

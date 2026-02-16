@@ -105,7 +105,7 @@ class ComposeFile:
 
     @property
     def services(self) -> dict:
-        if self.data and "services" in self.data:
+        if self.data and "services" in self.data and self.data["services"]:
             return dict(self.data["services"])
         return {}
 

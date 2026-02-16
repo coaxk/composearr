@@ -25,7 +25,8 @@ class TestCollectPorts:
             "    image: nginx:1.25\n"
             "    ports:\n"
             '      - "8080:80"\n'
-            '      - "8443:443"\n'
+            '      - "8443:443"\n',
+            encoding="utf-8",
         )
         ports = collect_ports(tmp_path)
         assert len(ports) == 2
@@ -36,11 +37,13 @@ class TestCollectPorts:
     def test_collects_from_multiple_files(self, tmp_path: Path):
         (tmp_path / "web").mkdir()
         (tmp_path / "web" / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:1.25\n    ports:\n      - '8080:80'\n"
+            "services:\n  web:\n    image: nginx:1.25\n    ports:\n      - '8080:80'\n",
+            encoding="utf-8",
         )
         (tmp_path / "db").mkdir()
         (tmp_path / "db" / "compose.yaml").write_text(
-            "services:\n  db:\n    image: postgres:16\n    ports:\n      - '5432:5432'\n"
+            "services:\n  db:\n    image: postgres:16\n    ports:\n      - '5432:5432'\n",
+            encoding="utf-8",
         )
         ports = collect_ports(tmp_path)
         assert len(ports) == 2
@@ -51,7 +54,8 @@ class TestCollectPorts:
 
     def test_no_ports(self, tmp_path: Path):
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:1.25\n"
+            "services:\n  web:\n    image: nginx:1.25\n",
+            encoding="utf-8",
         )
         ports = collect_ports(tmp_path)
         assert ports == []
@@ -129,7 +133,8 @@ class TestPortsCLI:
         from composearr.cli import app
 
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:1.25\n    ports:\n      - '8080:80'\n"
+            "services:\n  web:\n    image: nginx:1.25\n    ports:\n      - '8080:80'\n",
+            encoding="utf-8",
         )
         runner = CliRunner()
         result = runner.invoke(app, ["ports", str(tmp_path)])
@@ -141,7 +146,8 @@ class TestPortsCLI:
         from composearr.cli import app
 
         (tmp_path / "compose.yaml").write_text(
-            "services:\n  web:\n    image: nginx:1.25\n    ports:\n      - '8080:80'\n"
+            "services:\n  web:\n    image: nginx:1.25\n    ports:\n      - '8080:80'\n",
+            encoding="utf-8",
         )
         runner = CliRunner()
         result = runner.invoke(app, ["ports", str(tmp_path), "--format", "json"])

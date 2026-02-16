@@ -102,7 +102,7 @@ class TestConfigCLI:
         from typer.testing import CliRunner
         from composearr.cli import app
 
-        (tmp_path / ".composearr.yml").write_text("rules:\n  FAKE_RULE: warning\n")
+        (tmp_path / ".composearr.yml").write_text("rules:\n  FAKE_RULE: warning\n", encoding="utf-8")
         runner = CliRunner()
         result = runner.invoke(app, ["config", str(tmp_path)])
         assert result.exit_code == 1
