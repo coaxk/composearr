@@ -63,6 +63,7 @@ class FormatOptions:
     min_severity: Severity = Severity.ERROR
     verbose: bool = False
     group_by: str = "rule"  # "rule" | "file" | "severity"
+    tui_mode: bool = False  # When True, hints reference TUI menu instead of CLI flags
 
 
 @dataclass

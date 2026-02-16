@@ -11,6 +11,7 @@ from pathlib import Path
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from rich.console import Console
+from rich.rule import Rule
 from rich.text import Text
 
 from composearr import __version__
@@ -57,7 +58,7 @@ _ROLL_SAFE_FALLBACK = (
     "\n :-#*##*#=~=;,  .     .,:-~+=............,,~~-;;=~-:-=~;;=-;::=~-#@@#@#%#"
     "\n ==***#@@@%+~;,::,.....,:--~=,...........,.~=-;:==-:-=~;;=-:::=~-*@@#@#@#"
     "\n ;=**#%%@#+=~,:-;:,.   ,;---+#..........,,.~=-;;==-;-=~;;=-;::~~-*@@#@#@#"
-    "\n ~~#**%@%++;  +-,    .,;-~=#@%.......,,,,,.-=~;;==~;-=~-;=~;;:~~~+@@#@@@@"
+    "\n ~~#**%@%++;  +-,    .,;-~=#@%.......,,,,,.-=~;;==~;-=~-;=~;;:~==#@@@@@@@"
     "\n =-*#**%++- ,+%-..-+#%@%#*%@%*,....,,,,,,,.-=~-;==~;-=~-;=~;;:~==#@@@@@@@"
     "\n =,+**#=;; .~+*-;~+#%@@@@=#@++..,.,,,,,,,,.;=~-;~=~;-==-;==;;;~==#@@@@@@@"
     "\n #;+###*~ :~-;~~+#@@%~@%= ,#@#:.,,,,,,,,,,.;+~-;~=~--==-;==;;;-=~+@@@@@@@"
@@ -83,7 +84,6 @@ _ROLL_SAFE_FALLBACK = (
 
 def _load_ansi_art(console: Console) -> Text | str:
     """Load true-color ANSI art if terminal supports it, otherwise fallback."""
-    # Check if terminal supports true-color (24-bit)
     color_system = console.color_system
     if color_system != "truecolor":
         return _ROLL_SAFE_FALLBACK
@@ -163,11 +163,14 @@ def _render_figlet_title(console: Console) -> str | None:
     return f"[{C_TEAL}]{joined}[/]"
 
 
+# ── Navigation Helpers ─────────────────────────────────────────
+
+
 def _nav_choices() -> list[Choice]:
     """Return Back and Exit choices for appending to any menu."""
     return [
-        Choice(value=_BACK, name="\u2190 Back"),
-        Choice(value=_EXIT, name="\u2716 Exit"),
+        Choice(value=_BACK, name="\u2190  Back"),
+        Choice(value=_EXIT, name="\u2716  Exit"),
     ]
 
 
@@ -178,6 +181,24 @@ def _check_nav(value: str) -> str | None:
     if value == _BACK:
         return "back"
     return None
+
+
+def _section_header(console: Console, title: str, subtitle: str | None = None) -> None:
+    """Print a visual section divider with title."""
+    console.print()
+    console.print(Rule(f"[bold {C_TEAL}]{title}[/]", style=C_DIM))
+    if subtitle:
+        console.print(f"  [{C_MUTED}]{subtitle}[/]")
+    console.print()
+
+
+def _pause(console: Console, message: str = "Press Enter to continue...") -> None:
+    """Pause for user acknowledgment."""
+    console.print(f"\n  [{C_MUTED}]{message}[/]")
+    try:
+        input()
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 # ── Path Resolution (session-aware) ───────────────────────────
@@ -211,6 +232,7 @@ def _prompt_for_path(console: Console, session: dict) -> str | None:
             *_nav_choices(),
         ],
         default="auto",
+        long_instruction="Auto-detect checks common locations like ~/docker, /opt/stacks, C:\\DockerContainers",
     ).execute()
 
     nav = _check_nav(path_mode)
@@ -218,26 +240,7 @@ def _prompt_for_path(console: Console, session: dict) -> str | None:
         return None
 
     if path_mode == "auto":
-        from composearr.scanner.discovery import detect_stack_directory
-        from rich.progress import Progress, SpinnerColumn, TextColumn
-        with Progress(
-            SpinnerColumn(style=C_TEAL),
-            TextColumn(f"[{C_MUTED}]Searching common locations\u2026[/]"),
-            console=console,
-            transient=True,
-        ) as progress:
-            progress.add_task("", total=None)
-            detected = detect_stack_directory()
-        if detected:
-            path = str(detected)
-            console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Found stacks at[/] [{C_TEAL}]{path}[/]")
-        else:
-            console.print(f"  [{C_WARN}]\u26a0[/] [{C_TEXT}]No Docker stacks found in common locations[/]")
-            path = inquirer.text(
-                message="Enter stack directory:",
-                default=str(Path.cwd()),
-                validate=lambda p: Path(p).is_dir() or "Directory not found",
-            ).execute()
+        return _auto_detect_path(console, session)
     else:
         path = inquirer.text(
             message="Stack directory:",
@@ -245,6 +248,34 @@ def _prompt_for_path(console: Console, session: dict) -> str | None:
             validate=lambda p: Path(p).is_dir() or "Directory not found",
         ).execute()
 
+    session["path"] = path
+    return path
+
+
+def _auto_detect_path(console: Console, session: dict) -> str | None:
+    """Run auto-detection and update session."""
+    from composearr.scanner.discovery import detect_stack_directory
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    with Progress(
+        SpinnerColumn(style=C_TEAL),
+        TextColumn(f"[{C_MUTED}]Searching common locations\u2026[/]"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("", total=None)
+        detected = detect_stack_directory()
+    if detected:
+        path = str(detected)
+        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Found stacks at[/] [{C_TEAL}]{path}[/]")
+        session["path"] = path
+        return path
+
+    console.print(f"  [{C_WARN}]\u26a0[/] [{C_TEXT}]No Docker stacks found in common locations[/]")
+    path = inquirer.text(
+        message="Enter stack directory:",
+        default=str(Path.cwd()),
+        validate=lambda p: Path(p).is_dir() or "Directory not found",
+    ).execute()
     session["path"] = path
     return path
 
@@ -266,15 +297,17 @@ def _change_path(console: Console, session: dict) -> str | None:
     if nav:
         return remembered  # Keep current path on back/exit
 
-    # Clear and re-resolve
-    old_path = session.pop("path", None)
-    result = _prompt_for_path(console, session)
-    if result is None:
-        # User cancelled — restore old path
-        if old_path:
-            session["path"] = old_path
-        return old_path
-    return result
+    if path_mode == "auto":
+        # Auto-detect directly — don't re-prompt
+        return _auto_detect_path(console, session)
+    else:
+        path = inquirer.text(
+            message="Stack directory:",
+            default=remembered or str(Path.cwd()),
+            validate=lambda p: Path(p).is_dir() or "Directory not found",
+        ).execute()
+        session["path"] = path
+        return path
 
 
 def _auto_resolve_path(console: Console, session: dict) -> str | None:
@@ -327,7 +360,28 @@ def launch_tui() -> None:
     console.print(f"  [{C_MUTED}]Docker Compose Hygiene Linter[/]")
     console.print()
 
+    # Intro text — explain what the app does
+    console.print(f"  [{C_TEXT}]ComposeArr scans your Docker Compose stacks for common issues:[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Configuration problems (missing restart policies, fake healthchecks)[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Security risks (hardcoded secrets, unpinned :latest tags)[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Consistency issues (mismatched PUID/PGID, missing timezones)[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Network problems (port conflicts, unreachable dependencies)[/]")
+    console.print()
+    console.print(f"  [{C_MUTED}]Perfect for homelab enthusiasts running *arr stacks, media servers,[/]")
+    console.print(f"  [{C_MUTED}]and self-hosted applications.[/]")
+    console.print()
+
     while True:
+        # Menu descriptions before the prompt
+        console.print(f"  [{C_MUTED}]Quick Audit    \u2014 Scan with smart defaults, find common issues[/]")
+        console.print(f"  [{C_MUTED}]Custom Audit   \u2014 Choose checks, severity, format, and more[/]")
+        console.print(f"  [{C_MUTED}]Fix Issues     \u2014 Auto-fix problems (creates backups first)[/]")
+        console.print(f"  [{C_MUTED}]Port Table     \u2014 See all port mappings and detect conflicts[/]")
+        console.print(f"  [{C_MUTED}]Topology       \u2014 Visualize network connections between services[/]")
+        console.print(f"  [{C_MUTED}]Rules          \u2014 Browse all lint rules with explanations[/]")
+        console.print(f"  [{C_MUTED}]Config         \u2014 View or validate your .composearr.yml settings[/]")
+        console.print()
+
         action = inquirer.select(
             message="What would you like to do?",
             choices=[
@@ -371,6 +425,10 @@ def launch_tui() -> None:
 
 def _tui_quick_audit(console: Console, session: dict) -> None:
     """One-click audit with smart defaults."""
+    _section_header(console, "Quick Audit", "Scanning your full stack with recommended settings")
+
+    # Quick audit always uses auto-detected path (reset any custom path)
+    session.pop("path", None)
     path = _auto_resolve_path(console, session)
     if path is None:
         return
@@ -386,6 +444,7 @@ def _tui_quick_audit(console: Console, session: dict) -> None:
         min_severity=Severity.ERROR,
         verbose=False,
         group_by="rule",
+        tui_mode=True,
     )
 
     formatter = ConsoleFormatter(console)
@@ -399,6 +458,14 @@ def _post_audit_menu(console: Console, session: dict, result, root: Path) -> Non
     """After an audit completes, offer next actions."""
     has_fixable = any(i.fix_available for i in result.all_issues)
 
+    # Guidance text
+    console.print()
+    if has_fixable:
+        fixable_count = sum(1 for i in result.all_issues if i.fix_available)
+        console.print(f"  [{C_OK}]\u2713 {fixable_count} issues can be auto-fixed![/]")
+        console.print(f"  [{C_MUTED}]Select 'Fix issues' below, or run: composearr fix[/]")
+    console.print()
+
     choices = []
     if has_fixable:
         choices.append(Choice(value="fix", name="\U0001f527 Fix issues"))
@@ -406,10 +473,10 @@ def _post_audit_menu(console: Console, session: dict, result, root: Path) -> Non
         Choice(value="rerun", name="\u26a1 Re-run with different settings"),
         Choice(value="export", name="\U0001f4be Export results (JSON/SARIF)"),
         Choice(value="ports", name="\U0001f4cb View port allocation"),
+        Choice(value="topo", name="\U0001f310 View network topology"),
         Choice(value="menu", name="\u2190 Back to main menu"),
     ])
 
-    console.print()
     action = inquirer.select(
         message="What next?",
         choices=choices,
@@ -424,8 +491,13 @@ def _post_audit_menu(console: Console, session: dict, result, root: Path) -> Non
         _export_results(console, result, root)
     elif action == "ports":
         from composearr.commands.ports import collect_ports, render_port_table
+        _section_header(console, "Port Allocation", "All port mappings across your stack")
         all_ports = collect_ports(root)
         render_port_table(all_ports, root, console)
+    elif action == "topo":
+        from composearr.commands.topology import render_topology
+        _section_header(console, "Network Topology", "How your services connect to each other")
+        render_topology(root, console)
 
 
 def _export_results(console: Console, result, root: Path) -> None:
@@ -439,6 +511,7 @@ def _export_results(console: Console, result, root: Path) -> None:
             *_nav_choices(),
         ],
         default="json",
+        long_instruction="JSON for scripts/dashboards | SARIF for IDE integration | GitHub for CI annotations",
     ).execute()
 
     nav = _check_nav(fmt)
@@ -473,8 +546,9 @@ def _export_results(console: Console, result, root: Path) -> None:
 
 def _tui_custom_audit(console: Console, session: dict) -> None:
     """Custom audit with a settings dashboard — see all options, change what you need."""
+    _section_header(console, "Custom Audit", "Configure your audit settings, then run")
 
-    # Default audit settings
+    # Default audit settings — use session path but track separately
     settings = {
         "path": session.get("path"),
         "severity": "error",
@@ -514,7 +588,7 @@ def _tui_custom_audit(console: Console, session: dict) -> None:
             opts.append("no-network")
         opts_display = ", ".join(opts) if opts else "none"
 
-        console.print(f"  [bold {C_TEXT}]Audit Settings[/]")
+        console.print(f"  [bold {C_TEXT}]Current Audit Settings[/]")
         console.print(f"    [{C_MUTED}]Path:[/]     [{C_TEAL}]{path_display}[/]")
         console.print(f"    [{C_MUTED}]Severity:[/] [{C_TEXT}]{settings['severity']}[/]")
         console.print(f"    [{C_MUTED}]Group by:[/] [{C_TEXT}]{settings['group_by']}[/]")
@@ -524,15 +598,15 @@ def _tui_custom_audit(console: Console, session: dict) -> None:
         console.print()
 
         action = inquirer.select(
-            message="",
+            message="Configure or run:",
             choices=[
-                Choice(value="run", name=f"\u25b6 Run audit"),
-                Choice(value="path", name=f"  Change path"),
-                Choice(value="severity", name=f"  Change severity"),
-                Choice(value="group_by", name=f"  Change grouping"),
-                Choice(value="format", name=f"  Change format"),
-                Choice(value="options", name=f"  Toggle options (verbose, no-network)"),
-                Choice(value="rules", name=f"  Filter rules"),
+                Choice(value="run", name="\u25b6 Run audit"),
+                Choice(value="path", name="  Change path"),
+                Choice(value="severity", name="  Change severity"),
+                Choice(value="group_by", name="  Change grouping"),
+                Choice(value="format", name="  Change format"),
+                Choice(value="options", name="  Toggle options (verbose, no-network)"),
+                Choice(value="rules", name="  Filter rules"),
                 *_nav_choices(),
             ],
             default="run",
@@ -557,10 +631,15 @@ def _tui_custom_audit(console: Console, session: dict) -> None:
                     Choice(value="error", name="Error only"),
                     Choice(value="warning", name="Warnings and above"),
                     Choice(value="info", name="Everything (info+)"),
+                    *_nav_choices(),
                 ],
                 default=settings["severity"],
+                long_instruction="Error = critical issues only | Warning = best practices | Info = everything including suggestions",
             ).execute()
-            settings["severity"] = val
+            nav = _check_nav(val)
+            if not nav:
+                settings["severity"] = val
+                console.print(f"  [{C_OK}]\u2713[/] Severity set to [{C_TEAL}]{val}[/]")
 
         elif action == "group_by":
             val = inquirer.select(
@@ -569,10 +648,15 @@ def _tui_custom_audit(console: Console, session: dict) -> None:
                     Choice(value="rule", name="Rule (default)"),
                     Choice(value="file", name="File"),
                     Choice(value="severity", name="Severity"),
+                    *_nav_choices(),
                 ],
                 default=settings["group_by"],
+                long_instruction="By rule = fix one issue type everywhere | By file = fix one service at a time",
             ).execute()
-            settings["group_by"] = val
+            nav = _check_nav(val)
+            if not nav:
+                settings["group_by"] = val
+                console.print(f"  [{C_OK}]\u2713[/] Grouping set to [{C_TEAL}]{val}[/]")
 
         elif action == "format":
             val = inquirer.select(
@@ -582,21 +666,28 @@ def _tui_custom_audit(console: Console, session: dict) -> None:
                     Choice(value="json", name="JSON (machine-readable)"),
                     Choice(value="sarif", name="SARIF (GitHub Advanced Security)"),
                     Choice(value="github", name="GitHub Actions annotations"),
+                    *_nav_choices(),
                 ],
                 default=settings["format"],
+                long_instruction="Console = terminal display | JSON/SARIF = for CI/CD and IDE integration",
             ).execute()
-            settings["format"] = val
+            nav = _check_nav(val)
+            if not nav:
+                settings["format"] = val
+                console.print(f"  [{C_OK}]\u2713[/] Format set to [{C_TEAL}]{val}[/]")
 
         elif action == "options":
             selected = inquirer.checkbox(
-                message="Toggle options (space to toggle):",
+                message="Toggle options (space to toggle, enter to confirm):",
                 choices=[
-                    Choice(value="verbose", name="Verbose — full file context", enabled=settings["verbose"]),
-                    Choice(value="no_network", name="No network — skip tag lookups", enabled=settings["no_network"]),
+                    Choice(value="verbose", name="Verbose \u2014 show full file context for each issue", enabled=settings["verbose"]),
+                    Choice(value="no_network", name="No network \u2014 skip tag lookups (work offline)", enabled=settings["no_network"]),
                 ],
+                long_instruction="Disable network to work offline | Verbose shows surrounding YAML for each issue",
             ).execute()
             settings["verbose"] = "verbose" in selected
             settings["no_network"] = "no_network" in selected
+            console.print(f"  [{C_OK}]\u2713[/] Options updated")
 
         elif action == "rules":
             filter_mode = inquirer.select(
@@ -605,9 +696,15 @@ def _tui_custom_audit(console: Console, session: dict) -> None:
                     Choice(value="all", name="All rules"),
                     Choice(value="select", name="Select specific rules"),
                     Choice(value="exclude", name="Exclude specific rules"),
+                    *_nav_choices(),
                 ],
                 default="all",
+                long_instruction="Select which rules to run. Uncheck rules you want to skip",
             ).execute()
+
+            nav = _check_nav(filter_mode)
+            if nav:
+                continue
 
             all_rules = get_all_rules()
             if filter_mode == "select":
@@ -667,6 +764,7 @@ def _run_audit_with_settings(console: Console, session: dict, settings: dict) ->
         min_severity=Severity(settings["severity"]),
         verbose=settings.get("verbose", False),
         group_by=settings.get("group_by", "rule"),
+        tui_mode=True,
     )
 
     output_format = settings["format"]
@@ -710,12 +808,17 @@ def _run_audit_with_settings(console: Console, session: dict, settings: dict) ->
             Path(filename).write_text(content, encoding="utf-8")
             console.print(f"\n  [{C_OK}]\u2713[/] Saved to [{C_TEAL}]{filename}[/]")
 
+    # Reset session path after custom audit to prevent state leaking
+    session.pop("path", None)
+
 
 # ── Fix Issues ─────────────────────────────────────────────────
 
 
 def _tui_fix(console: Console, session: dict) -> None:
     """Fix flow — scan, review, apply."""
+    _section_header(console, "Fix Issues", "Scan for auto-fixable problems and apply fixes")
+
     path = _resolve_path(console, session)
     if path is None:
         return
@@ -733,6 +836,7 @@ def _tui_fix(console: Console, session: dict) -> None:
 
     if not fixable:
         console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]No fixable issues found[/]")
+        console.print(f"  [{C_MUTED}]All auto-fixable issues are already resolved.[/]")
         return
 
     console.print(f"  [{C_TEXT}]Found[/] [bold {C_TEAL}]{len(fixable)}[/] [{C_TEXT}]fixable issues[/]")
@@ -754,7 +858,7 @@ def _tui_fix(console: Console, session: dict) -> None:
             rel = str(Path(file_path).relative_to(root))
         except ValueError:
             rel = file_path
-        console.print(f"  [{C_TEXT}]{rel}[/]")
+        console.print(f"  [{C_TEAL}]{rel}[/]")
         for issue in by_file[file_path]:
             color = sev_colors.get(issue.severity, C_MUTED)
             svc = f" [bold {C_TEAL}]{issue.service}[/]" if issue.service else ""
@@ -763,15 +867,23 @@ def _tui_fix(console: Console, session: dict) -> None:
             console.print(f"      [{C_OK}]\u2192[/] [{C_TEAL}]{fix_preview}[/]")
         console.print()
 
-    # Apply or not?
+    # Explain what happens before applying
+    console.print(f"  [{C_TEXT}]What happens when you apply fixes:[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Backups created as .yaml.bak (always)[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Original compose files are modified[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Running containers are NOT affected[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Restart with: docker compose up -d[/]")
+    console.print(f"    [{C_MUTED}]\u2022 To rollback: copy .bak files over originals[/]")
+    console.print()
+
+    # Apply or not? (no "without backups" option)
     action = inquirer.select(
         message="Apply fixes?",
         choices=[
-            Choice(value="apply_backup", name="\u2713 Apply with backups (.bak files)"),
-            Choice(value="apply_no_backup", name="\u2713 Apply without backups"),
-            Choice(value="cancel", name="\u2716 Cancel \u2014 don't modify files"),
+            Choice(value="apply", name="\u2713 Apply fixes (with backups)"),
+            Choice(value="cancel", name="\u2716  Cancel \u2014 don't modify files"),
         ],
-        default="apply_backup",
+        default="apply",
     ).execute()
 
     if action == "cancel":
@@ -779,8 +891,7 @@ def _tui_fix(console: Console, session: dict) -> None:
         return
 
     from composearr.fixer import apply_fixes
-    backup = action == "apply_backup"
-    fix_result = apply_fixes(fixable, root, backup=backup)
+    fix_result = apply_fixes(fixable, root, backup=True)
 
     console.print()
     if fix_result.applied:
@@ -797,7 +908,7 @@ def _tui_fix(console: Console, session: dict) -> None:
                 rel = bak.relative_to(root)
             except ValueError:
                 rel = bak
-            console.print(f"    [{C_MUTED}]{rel}[/]")
+            console.print(f"    [{C_TEAL}]{rel}[/]")
         console.print()
         console.print(f"  [{C_MUTED}]To roll back: copy .bak files over the originals[/]")
         console.print(f"  [{C_MUTED}]  e.g.  cp compose.yaml.bak compose.yaml[/]")
@@ -809,6 +920,8 @@ def _tui_fix(console: Console, session: dict) -> None:
 def _tui_ports(console: Console, session: dict) -> None:
     """Port allocation table."""
     from composearr.commands.ports import collect_ports, render_port_table
+
+    _section_header(console, "Port Allocation", "See all port mappings and detect conflicts across your stack")
 
     path = _resolve_path(console, session)
     if path is None:
@@ -822,6 +935,7 @@ def _tui_ports(console: Console, session: dict) -> None:
             *_nav_choices(),
         ],
         default="all",
+        long_instruction="Conflicts only shows ports used by multiple services",
     ).execute()
 
     nav = _check_nav(view_mode)
@@ -853,11 +967,18 @@ def _tui_topology(console: Console, session: dict) -> None:
     """Network topology visualization."""
     from composearr.commands.topology import render_topology
 
+    _section_header(console, "Network Topology", "How your services connect to each other")
+
     path = _resolve_path(console, session)
     if path is None:
         return
 
     root = Path(path).resolve()
+
+    # Pre-load data under spinner (render_topology re-discovers, so this warms the cache)
+    from composearr.scanner.discovery import discover_compose_files
+    from composearr.scanner.parser import parse_compose_file
+    from composearr.commands.topology import build_network_graph
 
     from rich.progress import Progress, SpinnerColumn, TextColumn
     with Progress(
@@ -867,23 +988,27 @@ def _tui_topology(console: Console, session: dict) -> None:
         transient=True,
     ) as progress:
         progress.add_task("", total=None)
-        # Pre-load to trigger the spinner
-        from composearr.scanner.discovery import discover_compose_files
-        from composearr.scanner.parser import parse_compose_file
         paths, _ = discover_compose_files(root)
-        _ = [parse_compose_file(p) for p in paths]
+        compose_files = [parse_compose_file(p) for p in paths]
+        compose_files = [cf for cf in compose_files if not cf.parse_error]
+
+    if not compose_files:
+        console.print(f"  [{C_MUTED}]No compose files found[/]")
+        return
 
     render_topology(root, console)
 
 
-# ── Rules & Explain (combined — flatter) ──────────────────────
+# ── Rules & Explain (combined — with back loop) ───────────────
 
 
 def _tui_rules_and_explain(console: Console) -> None:
-    """View rules list, then optionally explain one."""
+    """View rules list, then optionally explain one — loops until user goes back."""
     from rich.table import Table
     from rich import box
     from rich.style import Style
+
+    _section_header(console, "Rules & Explain", "Browse all lint rules. Select one to see detailed explanation")
 
     all_rules = sorted(get_all_rules(), key=lambda x: x.id)
     sev_colors = {
@@ -917,22 +1042,27 @@ def _tui_rules_and_explain(console: Console) -> None:
     console.print(table)
     console.print()
 
-    # Offer to explain a rule
-    choices = [
-        Choice(value=r.id, name=f"{r.id}  {r.name}")
-        for r in all_rules
-    ]
-    choices.append(Choice(value=_BACK, name="\u2190 Back to menu"))
+    # Loop: explain rules until user goes back
+    while True:
+        choices = [
+            Choice(value=r.id, name=f"{r.id}  {r.name}")
+            for r in all_rules
+        ]
+        choices.append(Choice(value=_BACK, name="\u2190 Back to menu"))
 
-    rule_id = inquirer.select(
-        message="Explain a rule? (or go back)",
-        choices=choices,
-        default=_BACK,
-    ).execute()
+        rule_id = inquirer.select(
+            message="Explain a rule? (or go back)",
+            choices=choices,
+            default=_BACK,
+            long_instruction="Select a rule to see what it checks, why it matters, and how to fix issues",
+        ).execute()
 
-    if rule_id != _BACK:
+        if rule_id == _BACK:
+            break
+
         from composearr.commands.explain import render_explanation
         render_explanation(rule_id, console)
+        console.print()
 
 
 # ── Config ─────────────────────────────────────────────────────
@@ -940,6 +1070,8 @@ def _tui_rules_and_explain(console: Console) -> None:
 
 def _tui_config(console: Console, session: dict) -> None:
     """Config view/validate."""
+    _section_header(console, "Configuration", "View or validate your .composearr.yml settings")
+
     action = inquirer.select(
         message="Config action:",
         choices=[
@@ -948,6 +1080,7 @@ def _tui_config(console: Console, session: dict) -> None:
             *_nav_choices(),
         ],
         default="show",
+        long_instruction="Effective config shows merged settings from user + project configs",
     ).execute()
 
     nav = _check_nav(action)
@@ -976,6 +1109,8 @@ def _tui_config(console: Console, session: dict) -> None:
 
         if not config_files:
             console.print(f"\n  [{C_MUTED}]No .composearr.yml found. Using defaults.[/]")
+            console.print(f"  [{C_MUTED}]Create one at {user_config} or in your project directory.[/]")
+            console.print(f"  [{C_MUTED}]See examples/ in the ComposeArr repo for starter configs.[/]")
             return
 
         for cf in config_files:

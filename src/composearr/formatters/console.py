@@ -100,6 +100,14 @@ class ConsoleFormatter:
         self._header()
         self._summary_section(result, root_path, opts)
 
+        # Pause after summary in TUI mode so results don't fly off screen
+        if opts.tui_mode and result.all_issues:
+            self.console.print(f"  [{C_MUTED}]Press Enter to see detailed results\u2026[/]")
+            try:
+                input()
+            except (EOFError, KeyboardInterrupt):
+                pass
+
         if opts.group_by == "file":
             self._render_by_file(result, root_path, opts)
         elif opts.group_by == "rule":
@@ -176,16 +184,33 @@ class ConsoleFormatter:
 
         self.console.print()
 
-        # Issue counts
+        # Issue counts with severity explanations
         self.console.print(
-            f"  [{C_ERR}]\u25cf {errors} error{'s' if errors != 1 else ''}[/]    "
-            f"[{C_WARN}]\u25cf {warnings} warning{'s' if warnings != 1 else ''}[/]    "
-            f"[{C_INFO}]\u25cf {infos} info[/]"
+            f"  [{C_ERR}]\u25cf {errors} error{'s' if errors != 1 else ''}[/]  "
+            f"{_muted('(must fix \u2014 breaks functionality)')}"
+        )
+        self.console.print(
+            f"  [{C_WARN}]\u25cf {warnings} warning{'s' if warnings != 1 else ''}[/]  "
+            f"{_muted('(should fix \u2014 best practices)')}"
+        )
+        self.console.print(
+            f"  [{C_INFO}]\u25cf {infos} info[/]  "
+            f"{_muted('(consider fixing \u2014 improvements)')}"
         )
 
         fixable = result.fixable_count
         if fixable:
-            self.console.print(f"  {_ok(f'{fixable} auto-fixable')} {_muted('\u2192')} [{C_TEAL}]composearr audit --fix[/]")
+            if opts.tui_mode:
+                self.console.print(
+                    f"\n  {_ok(f'\u2713 {fixable} issues can be auto-fixed!')}"
+                    f"  {_muted('Select Fix Issues from menu, or run:')} [{C_TEAL}]composearr fix[/]"
+                )
+            else:
+                self.console.print(f"\n  {_ok(f'{fixable} auto-fixable')} {_muted('\u2192')} [{C_TEAL}]composearr fix[/]")
+
+        not_fixable = len(result.all_issues) - fixable
+        if not_fixable > 0 and fixable > 0:
+            self.console.print(f"  {_muted(f'{not_fixable} issues require manual review')}")
 
         self.console.print()
 
@@ -195,16 +220,23 @@ class ConsoleFormatter:
             for issue in result.all_issues:
                 rule_counts[f"{issue.rule_id} ({issue.rule_name})"] += 1
 
-            self.console.print(f"  {_muted('By rule:')}")
+            self.console.print(f"  {_muted('Top issues by rule:')}")
             for rule_label, count in rule_counts.most_common(5):
                 self.console.print(f"    {_muted(f'{count:>3}')}  {rule_label}")
             self.console.print()
 
-        # Clean file count
+        # Clean file list (show names, not just count)
         files_with_issues = {i.file_path for i in result.all_issues}
-        clean_count = files - len(files_with_issues) - len(parse_errors)
-        if clean_count > 0:
-            self.console.print(f"  {_ok(f'\u2713 {clean_count} files passed all checks')}")
+        parse_error_files = {str(cf.path) for cf in result.compose_files if cf.parse_error}
+        clean_files = [
+            cf for cf in result.compose_files
+            if str(cf.path) not in files_with_issues and str(cf.path) not in parse_error_files
+        ]
+        if clean_files:
+            self.console.print(f"  {_ok(f'\u2713 {len(clean_files)} files passed all checks:')}")
+            for cf in clean_files:
+                rel = _rel_path(str(cf.path), root_path)
+                self.console.print(f"    [{C_TEAL}]{rel}[/]")
             self.console.print()
 
     # ── Render by Severity (default) ────────────────────────────
@@ -304,7 +336,7 @@ class ConsoleFormatter:
                 rel = _rel_path(file_path, root_path)
                 file_issues = by_file[file_path]
                 if len(by_file) > 1:
-                    self.console.print(f"    {_dim(rel)}")
+                    self.console.print(f"    [{C_TEAL}]{rel}[/]")
                 cf = self._find_compose_file(result, file_path)
                 for issue in file_issues:
                     self._render_issue(issue, cf, root_path, opts.verbose)
@@ -350,7 +382,7 @@ class ConsoleFormatter:
             # Compact mode — use Padding for proper continuation line indentation
             svc_str = f" [bold {C_TEAL}]{issue.service}[/]" if issue.service else ""
             line_str = f":{issue.line}" if issue.line else ""
-            loc = _dim(f"  {rel}{line_str}")
+            loc = f"  [{C_TEAL}]{rel}{line_str}[/]"
             text = Text.from_markup(
                 f"[{sev_color}]\u25cf[/] [{sev_color}]{issue.rule_id}[/]  "
                 f"{issue.message}{svc_str}{loc}"
@@ -394,6 +426,12 @@ class ConsoleFormatter:
     # ── Footer ──────────────────────────────────────────────────
 
     def _footer(self, result: ScanResult, opts: FormatOptions) -> None:
+        if opts.tui_mode:
+            # TUI mode: guide user to menu options, not CLI flags
+            self.console.print(f"  {_muted('Use the menu below to explore results, fix issues, or view ports.')}")
+            self.console.print()
+            return
+
         hints: list[str] = []
 
         if opts.min_severity == Severity.ERROR and result.warning_count > 0:

@@ -157,7 +157,7 @@ def render_topology(root: Path, console: Console) -> None:
                         status = f"[{C_OK}]\u2713 yes[/]"
                         dot = f"[{C_OK}]\u25cf[/]"
                     else:
-                        status = f"[{C_ERR}]\u2716 NO[/]"
+                        status = f"[{C_ERR}]\u2716  NO[/]"
                         dot = f"[{C_ERR}]\u25cf[/]"
                 else:
                     status = f"[{C_WARN}]? not found[/]"

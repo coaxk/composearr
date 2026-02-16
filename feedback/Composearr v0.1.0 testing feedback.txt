@@ -1,0 +1,157 @@
+Composearr v0.1.0 testing feedback
+
+I'm just go to write down thoughts as I progress through each screen.
+
+Opening screen
+ansii art is off the charts awesome
+composearr v0.1.0 ascii art is also awesome - however, its kind of too wide and blows out past the width of everything else, any way to bring it close to the width of the other elements so the page looks more structured? whilst keeping the right aspect ration of course so the text then doesn't look whacky/squashed.
+
+under the docker compose hygiene linter text we should have an introductory paragraph explaining what the app is, its purpose, capabilities currently, planned future capability and some example use cases. Imagine you are a user and you fire it up and land at the opening screen, currently it is like "ok what am I doing here and what do it do? currently this feel is throughout the tui, when need to get a bit more friendly and instructive in general I feel. need to talk about central capability/functionality here like "we can take all your secrets and put into a single .env etc etc
+
+
+overall design, colour/look and feel is awesome. very very cool for a tui.
+
+running through the different options in the tui of course brings you to the next screen page of what you are intending to do but without any delineation from the last page you were out, result is a big text well that the user easily gets lost in. need to make some way of delineating each previous section as you switch between functions so the user can remain focused. dividng line when each section is selected/switched to? 
+
+TUI menu - be more descriptive. - as per my commenst re the intro text/description - we need to talk to/guide the user more. its seems that currently we expect them to have the level of knowledge and insight to the app that we the developers do, they do not.
+suggestion for example - 1. Quick Audit (smart defaults) - we need to explain what this is, what it does, what is the target we want to achieve etc 2. Custom audit (configure options) again more explaining neede here, same principle 3. Fix issues -ok, what issues, what does that mean? should I do it, why? what benefit will I gain? 4. Port allocation table - great, whats does that mean, whats the purpose, how will it help me, what should I do with that info? Network topology - same as port allocation feedback Rules and explain - sounds good, why am I interested in this, how does it fit in with everything else, why will it help me, will it help me? etc etc?config - what config, composearr app, my docker stack? what do I need to do here. guide me and help me. exit - self explanatory
+
+quick audit - auto find worked well for me, what happens if it doesn't find my stack? results come up and the page flies up off the top of my screen can we have it pause at the top of the screen and continue printing below?
+  ● 33 errors    ● 81 warnings    ● 0 info
+  61 auto-fixable → composearr audit --fix   - awesome. for the non auto fixable, what are they? which files and why? for the composearr audit --fix we need to be more clear and explain what to do, do I exit out of app and then run that? is that a command? can I just use the tui to do it? if so, how do I get there? etc etc
+
+ By rule:
+     32  CA001 (no-latest-tag)
+     29  CA101 (no-inline-secrets)
+     24  CA403 (missing-timezone)
+     21  CA201 (require-healthcheck)
+      2  CA202 (no-fake-healthcheck)  - again, we are assuming the user is top tier tech. we ned to be more explanatory verbally. like, here are the results of the quick audit listed by rule and number of errors (or something like that)
+
+ ✓ 3 files passed all checks - great. which ones?
+
+then it goes into: ━━ CA101 no-inline-secrets (29 issues)
+
+    gluetun\compose.yaml
+    ● CA101  WIREGUARD_PRIVATE_KEY contains secret value inline gluetun  gluetun\compose.yaml:18
+    ● CA101  WIREGUARD_PUBLIC_KEY appears to contain a secret value gluetun  gluetun\compose.yaml:22
+
+    jdownloader2\compose.yaml
+    ● CA101  MYJD_USER has high-entropy value (potential secret) jdownloader2  jdownloader2\compose.yaml:13
+    ● CA101  MYJD_PASSWORD contains secret value inline (weak secret — use 32+ random chars) jdownloader2  jdownloader2\compose.yaml:14
+
+    komodo\compose.yaml
+    ● CA101  DOCKER_HOST has high-entropy value (potential secret) komodo-periphery  komodo\compose.yaml:33
+    ● CA101  DOCKER_HOST has high-entropy value (potential secret) komodo-core  komodo\compose.yaml:33
+
+    meshmonitor\compose.yaml
+    ● CA101  DATABASE_URL has high-entropy value (potential secret) meshmonitor  meshmonitor\compose.yaml:11
+
+    subgen\compose.yaml
+    ● CA101  SUBGEN_KWARGS_LANG_JA has high-entropy value (potential secret) subgen  subgen\compose.yaml:37
+    ● CA101  SUBGEN_KWARGS_LANG_DE has high-entropy value (potential secret) subgen  subgen\compose.yaml:38
+    
+the file names are muted grey here, need to be more visible/brighter colour. this section needs to have a heading that also contains explanatory info about what the user is seeing.
+at the end it says - Try:  --severity warning to see all warnings  •  --verbose for full file context  •  --group-by file to group by file - for this again more explanatory. do I have to exit out of the whole program? can I do these suggestions vi tui? I don't know, I need to be guided.
+
+im press fix issues. page flies off the screen again. at the bottom we have the apply fixes - ok, need to be more explanatory, what will happen, what will I then do, what should I expect, will me stacks auto restart, do I need to do myself? what if something is then broken etc etc etc. probably should entirely remove the apply without backups option. where will the backups be? in a single file or individual yamls? 
+
+now I'm at custom audit section - run audit - what does this do? what can I expect?
+I press change path, I then press re-scan and next thing that comes up is auto detect or enter path manually? seems a bit out of wack. when I press rescan shouldn't it then rescan? seems to be some logic error here. same thing if I press enter path manually, it brings the next options auto detect or change path manually again. should I just go to entering the path when I press enter path manually? logic error again? 
+change severity - more guidance explanation needed. make the user aware/educate. 
+
+when I'm stepping through these are my chosen options saved? I don't know, I choose an option and then it just bumps me back to the previous menu. after an option is slected, when they bump back, previous chosen options in the other catageroires should be display so they can see as they build their custiom audit profile - ok, I now realise when I save my chosen options ARE displayed. kinda says something though right? I didn't notice this at all. maybe when they save an option and it goes back think of a way to highlight what is displayed. Your current scan options are now... etc
+in that audit options menu each option should be explained.
+
+change grouping - again more explanation/education needed here for all options. if I change my mind I cant go back from here, I have to choose one
+
+change severity - I cant go back from this menu, have to choose one
+
+change format - cant go back. need more explanation re each option
+toggle options - cant go back. need more explanation, what am I doing here, what is the point of this? no network ? umm yeah ok why do I care, why should I care, whats the point or difference?
+
+filter rules - cant go back. what should I do here? why does this matter, how does it apply, what should I do etc etc. more guidance
+
+ok I ran my custom audit, it spat out some results - what should I do next? guide me
+
+Scanned 2 files, 2 services in 0.03s
+
+  ● 1 error    ● 2 warnings    ● 0 info
+
+  By rule:
+      2  CA201 (require-healthcheck)
+      1  CA301 (port-conflict)
+
+  ━━ CA201 require-healthcheck (2 issues)
+
+    tests\fixtures\invalid\port-conflict\svc1\compose.yaml
+    ● CA201  No healthcheck defined sonarr  tests\fixtures\invalid\port-conflict\svc1\compose.yaml:2
+
+    tests\fixtures\invalid\port-conflict\svc2\compose.yaml
+    ● CA201  No healthcheck defined radarr  tests\fixtures\invalid\port-conflict\svc2\compose.yaml:2
+
+  ━━ CA301 port-conflict (1 issues)
+
+    ● CA301  Port 8080/tcp used by multiple services: sonarr (in C:\Projects\composearr\tests\fixtures\invalid\port-conflict\svc1\compose.yaml), radarr (in
+    C:\Projects\composearr\tests\fixtures\invalid\port-conflict\svc2\compose.yaml)  tests\fixtures\invalid\port-conflict\svc1\compose.yaml
+  Try:  --verbose for full file context  •  --group-by file to group by file
+
+
+? What next? 📋 View port allocation
+
+  Port Allocations  2 mappings  1 conflicts
+
+         HOST PORT     CONTAINER     PROTO     SERVICE     FILE
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ●      8080          7878          tcp       radarr      tests\fixtures\invalid\port-conflict\svc2\compose.yaml
+  ●      8080          8989          tcp       sonarr      tests\fixtures\invalid\port-conflict\svc1\compose.yaml
+
+  ━━ Conflicts
+
+    ● 8080/tcp  used by: sonarr, radarr
+      → Suggested alternative: port 8081
+
+? What would you like to do? 🔧 Fix issues
+  Using: C:\Projects\composearr
+
+  ✓ Discovering compose files
+  ✓ Parsing compose files
+  ✓ Running per-file rules
+  ✓ Cross-file analysis
+
+  ✓ No fixable issues found  I run my custom audit, it said there were issues, a menu option was port allocation table, I pressed it, I then pressed fix issues and it returned that there are no fixable issues. I'm now very very confused. I then went to network topology and it only showed me Network Topology  2 services, 0 networks
+
+         NETWORK     TYPE       SERVICES
+────────────────────────────────────────────────
+  ●      default     bridge     radarr, sonar
+is this because its now running based off my custom audit settings? could be, I don't knowe. maybe? the app hasn't distinguished anything, I was expecting to see my full network details there, I wasn't told anything different? if we are drilled down in setting and this is whats happening we need to be informing the user of where they are at at all times. at this stage I'm confused and just want to delete tha app as its giving me headaches.
+I'm back at the top level of tui and press network topology and its still showing me only  Network Topology  2 services, 0 networks
+
+         NETWORK     TYPE       SERVICES
+────────────────────────────────────────────────
+  ●      default     bridge     radarr, sonar  
+is something broken, is my network screwed? do I need to clear a custom fig I made earlier? exit app and start again? who knows but its certainly driving me crazy and my finger is hovering over the delete button. we are alienating users, we should be making them love us and us making their life so easy it feels like a dream. 
+
+rules and explain - what am I looking at here? what should I do/ educate me on how to win at life by using this. once I press in and then view a rule explanation, I cant go back again. I have to start out main menu. whatb if I want to go back and look at another rule?
+from the main menu there I pressed fix issues and it says - no fixable issues found? why I had loads to fix before? I seem to be stuck in some previously config pattern? I don't know, very confused. 
+
+we need serious guidance through the whole process
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
