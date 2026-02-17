@@ -416,6 +416,11 @@ def _auto_resolve_path(console: Console, session: dict) -> str | None:
 
 def _is_first_launch() -> bool:
     """Check if this is the first time ComposeArr has been used."""
+    # Check marker file first
+    marker = Path.home() / ".composearr" / ".first_run_complete"
+    if marker.exists():
+        return False
+
     config_names = [".composearr.yml", ".composearr.yaml"]
 
     # Check home directory
@@ -606,8 +611,16 @@ def _check_first_launch(console: Console, session: dict) -> None:
     console.print(Rule(f"[bold {C_TEAL}]Ready to Go[/]", style=C_DIM))
     console.print()
     console.print(f"  [{C_TEXT}]Setup complete! Choose an action below to get started.[/]")
-    console.print(f"  [{C_MUTED}]Tip: 'Quick Audit' is the fastest way to see how your stack looks.[/]")
+    console.print(f"  [{C_MUTED}]Tip: 'Scan Stack' is the fastest way to see how your stack looks.[/]")
     console.print()
+
+    # Write first-run marker so wizard doesn't show again
+    try:
+        marker = Path.home() / ".composearr" / ".first_run_complete"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    except OSError:
+        pass
 
 
 def _verify_config_on_startup(console: Console) -> None:
@@ -719,56 +732,45 @@ def launch_tui() -> None:
     # ── Config Verification on Startup ────────────────────────
     _verify_config_on_startup(console)
 
+    # Load config for gamification toggle
+    try:
+        from composearr.config import load_config
+        _tui_config_obj = load_config(Path(session.get("path", ".")) if session.get("path") else None)
+    except Exception:
+        _tui_config_obj = None
+
     while True:
-        console.print(f"  [{C_MUTED}]Quick Audit    \u2014 Scan with smart defaults, find common issues[/]")
-        console.print(f"  [{C_MUTED}]Custom Audit   \u2014 Choose checks, severity, format, and more[/]")
-        console.print(f"  [{C_MUTED}]Fix Issues     \u2014 Auto-fix problems (creates backups first)[/]")
-        console.print(f"  [{C_MUTED}]Secure Secrets \u2014 Move hardcoded secrets from compose files into .env[/]")
-        console.print(f"  [{C_MUTED}]Watch Mode     \u2014 Monitor compose files and re-audit on changes[/]")
-        console.print(f"  [{C_MUTED}]Freshness      \u2014 Check for newer image versions across your stack[/]")
-        console.print(f"  [{C_MUTED}]History        \u2014 View past audit scores, trends, and progress[/]")
-        console.print(f"  [{C_MUTED}]Port Table     \u2014 See all port mappings and detect conflicts[/]")
-        console.print(f"  [{C_MUTED}]The Orphanage  \u2014 Find orphaned Docker volumes and networks[/]")
-        console.print(f"  [{C_MUTED}]Runtime Diff   \u2014 Compare compose files against running containers[/]")
-        console.print(f"  [{C_MUTED}]Topology       \u2014 Visualize network connections between services[/]")
-        console.print(f"  [{C_MUTED}]Rules          \u2014 Browse all lint rules with explanations[/]")
-        console.print(f"  [{C_MUTED}]Scaffold       \u2014 Generate best-practice compose files from templates[/]")
-        console.print(f"  [{C_MUTED}]Batch Fix      \u2014 CI/CD friendly auto-fix across all compose files[/]")
-        console.print(f"  [{C_MUTED}]Config         \u2014 Customize rule severity, ignored paths, and trusted registries[/]")
-        console.print(f"  [{C_MUTED}]Help           \u2014 Complete command reference and quick start guide[/]")
+        console.print(f"  [{C_MUTED}]Scan Stack      \u2014 Quick or custom audit with options[/]")
+        console.print(f"  [{C_MUTED}]Fix Issues      \u2014 Auto-fix problems (creates backups first)[/]")
+        console.print(f"  [{C_MUTED}]History         \u2014 View past audit scores, trends, and progress[/]")
+        console.print(f"  [{C_MUTED}]Analysis Tools  \u2014 Freshness, ports, runtime diff, orphaned resources[/]")
+        console.print(f"  [{C_MUTED}]Rules & Help    \u2014 Browse lint rules and command reference[/]")
+        console.print(f"  [{C_MUTED}]Settings        \u2014 Config, secrets, batch fix, change path[/]")
         console.print()
 
         action = inquirer.select(
             message="What would you like to do?",
             choices=[
-                Choice(value="quick", name="\u26a1 Quick Audit (smart defaults)"),
-                Choice(value="audit", name="\u2699  Custom Audit (configure options)"),
-                Choice(value="fix", name="\U0001f527 Fix issues"),
-                Choice(value="secrets", name="\U0001f512 Secure Secrets"),
-                Choice(value="watch", name="\U0001f441  Watch Mode"),
-                Choice(value="freshness", name="\U0001f4e6 Image Freshness"),
-                Choice(value="history", name="\U0001f4ca Audit History"),
-                Choice(value="ports", name="\U0001f4cb Port allocation table"),
-                Choice(value="orphanage", name="\U0001f5d1  The Orphanage (orphaned resources)"),
-                Choice(value="runtime", name="\U0001f504 Runtime Diff (compose vs running)"),
-                Choice(value="topology", name="\U0001f310 Network topology"),
-                Choice(value="rules", name="\U0001f4d6 Rules & Explain"),
-                Choice(value="scaffold", name="\u2728 Scaffold (generate compose)"),
-                Choice(value="batch", name="\u26a1 Batch Fix (CI/CD)"),
-                Choice(value="config", name="\u2699  Config"),
-                Choice(value="help", name="\u2753 Help (command reference)"),
+                Choice(value="scan", name="\U0001f50d Scan Stack"),
+                Choice(value="fix", name="\U0001f527 Fix Issues"),
+                Choice(value="history", name="\U0001f4ca History & Reports"),
+                Choice(value="tools", name="\U0001f6e0  Analysis Tools"),
+                Choice(value="rules_help", name="\U0001f4da Rules & Help"),
+                Choice(value="settings", name="\u2699  Settings"),
                 Choice(value=_EXIT, name="\u2716  Exit"),
             ],
-            default="quick",
+            default="scan",
         ).execute()
 
         if action == _EXIT:
-            # Show closing credits (Hall of Fame) if legends exist
-            try:
-                from composearr.credits import show_closing_credits
-                show_closing_credits(console)
-            except Exception:
-                pass
+            # Show closing credits if gamification is enabled
+            gamification_on = getattr(_tui_config_obj, "gamification", True) if _tui_config_obj else True
+            if gamification_on:
+                try:
+                    from composearr.credits import show_closing_credits
+                    show_closing_credits(console)
+                except Exception:
+                    pass
 
             whale = _load_whale_art(console)
             console.print()
@@ -786,38 +788,140 @@ def launch_tui() -> None:
             ]
             console.print(f"  [{C_MUTED}]{random.choice(taglines)}[/]\n")
             break
-        elif action == "quick":
-            _tui_quick_audit(console, session)
-        elif action == "audit":
-            _tui_custom_audit(console, session)
+        elif action == "scan":
+            _tui_scan_stack(console, session)
         elif action == "fix":
             _tui_fix(console, session)
-        elif action == "secrets":
-            _tui_secure_secrets(console, session)
-        elif action == "watch":
-            _tui_watch(console, session)
-        elif action == "freshness":
-            _tui_freshness(console, session)
         elif action == "history":
             _tui_history(console, session)
-        elif action == "ports":
-            _tui_ports(console, session)
-        elif action == "orphanage":
-            _tui_orphanage(console, session)
-        elif action == "runtime":
+        elif action == "tools":
+            _tui_analysis_tools(console, session)
+        elif action == "rules_help":
+            _tui_rules_help(console)
+        elif action == "settings":
+            _tui_settings(console, session)
+
+
+# ── Scan Stack (merged Quick + Custom) ────────────────────────
+
+
+def _tui_scan_stack(console: Console, session: dict) -> None:
+    """Combined scan menu — quick or custom audit."""
+    _section_header(console, "Scan Stack", "Run an audit on your Docker Compose files")
+
+    scan_mode = inquirer.select(
+        message="Scan mode:",
+        choices=[
+            Choice(value="quick", name="\u26a1 Quick Scan \u2014 recommended defaults"),
+            Choice(value="custom", name="\u2699  Custom Scan \u2014 choose rules, severity, format"),
+            *_nav_choices(),
+        ],
+        default="quick",
+    ).execute()
+
+    if _check_nav(scan_mode):
+        return
+
+    if scan_mode == "quick":
+        _tui_quick_audit(console, session)
+    else:
+        _tui_custom_audit(console, session)
+
+
+# ── Analysis Tools Submenu ────────────────────────────────────
+
+
+def _tui_analysis_tools(console: Console, session: dict) -> None:
+    """Analysis tools submenu."""
+    while True:
+        _section_header(console, "Analysis Tools")
+
+        tool = inquirer.select(
+            message="Choose a tool:",
+            choices=[
+                Choice(value="freshness", name="\U0001f4e6 Image Freshness \u2014 check for newer versions"),
+                Choice(value="runtime", name="\U0001f504 Runtime vs Compose \u2014 compare running state"),
+                Choice(value="ports", name="\U0001f4cb Port Allocation \u2014 mappings and conflicts"),
+                Choice(value="orphaned", name="\U0001f5d1  Orphaned Resources \u2014 unused volumes/networks"),
+                Choice(value="watch", name="\U0001f441  Watch Mode \u2014 monitor and re-audit on changes"),
+                Choice(value="topology", name="\U0001f310 Network Topology \u2014 service connectivity"),
+                *_nav_choices(),
+            ],
+        ).execute()
+
+        if _check_nav(tool):
+            return
+
+        if tool == "freshness":
+            _tui_freshness(console, session)
+        elif tool == "runtime":
             _tui_runtime(console, session)
-        elif action == "topology":
+        elif tool == "ports":
+            _tui_ports(console, session)
+        elif tool == "orphaned":
+            _tui_orphanage(console, session)
+        elif tool == "watch":
+            _tui_watch(console, session)
+        elif tool == "topology":
             _tui_topology(console, session)
-        elif action == "rules":
+
+
+# ── Rules & Help Submenu ──────────────────────────────────────
+
+
+def _tui_rules_help(console: Console) -> None:
+    """Rules and help submenu."""
+    while True:
+        _section_header(console, "Rules & Help")
+
+        choice = inquirer.select(
+            message="Choose:",
+            choices=[
+                Choice(value="rules", name="\U0001f4d6 Browse Rules \u2014 all 30 lint rules with explanations"),
+                Choice(value="help", name="\u2753 Command Reference \u2014 CLI and TUI commands"),
+                *_nav_choices(),
+            ],
+        ).execute()
+
+        if _check_nav(choice):
+            return
+
+        if choice == "rules":
             _tui_rules_and_explain(console)
-        elif action == "scaffold":
-            _tui_scaffold(console)
-        elif action == "batch":
-            _tui_batch(console, session)
-        elif action == "config":
-            _tui_config(console, session)
-        elif action == "help":
+        elif choice == "help":
             _tui_help(console)
+
+
+# ── Settings Submenu ──────────────────────────────────────────
+
+
+def _tui_settings(console: Console, session: dict) -> None:
+    """Settings submenu."""
+    while True:
+        _section_header(console, "Settings")
+
+        choice = inquirer.select(
+            message="Choose:",
+            choices=[
+                Choice(value="config", name="\u2699  Configuration \u2014 customize rules, paths, and registries"),
+                Choice(value="secrets", name="\U0001f512 Secure Secrets \u2014 move secrets to .env files"),
+                Choice(value="batch", name="\u26a1 Batch Fix \u2014 CI/CD friendly auto-fix"),
+                Choice(value="path", name="\U0001f4c2 Change Stack Path"),
+                *_nav_choices(),
+            ],
+        ).execute()
+
+        if _check_nav(choice):
+            return
+
+        if choice == "config":
+            _tui_config(console, session)
+        elif choice == "secrets":
+            _tui_secure_secrets(console, session)
+        elif choice == "batch":
+            _tui_batch(console, session)
+        elif choice == "path":
+            _change_path(console, session)
 
 
 # ── Help ──────────────────────────────────────────────────────
@@ -1306,20 +1410,24 @@ def _save_audit_history(result, root: Path, console: Console | None = None) -> N
             duration_seconds=result.timing.total_seconds,
         )
 
-        # Submit to leaderboard if eligible
-        try:
-            from composearr.leaderboard import Leaderboard
-            Leaderboard().submit_score(score)
-        except Exception:
-            pass
-
-        # Show tier warnings if console available
-        if console is not None:
+        # Gamification features (leaderboard + tier warnings) — check config
+        from composearr.config import load_config as _load_cfg
+        _cfg = _load_cfg(root)
+        if _cfg.gamification:
+            # Submit to leaderboard if eligible
             try:
-                from composearr.warnings import show_tier_warning
-                show_tier_warning(console, result.total_services)
+                from composearr.leaderboard import Leaderboard
+                Leaderboard().submit_score(score)
             except Exception:
                 pass
+
+            # Show tier warnings if console available
+            if console is not None:
+                try:
+                    from composearr.warnings import show_tier_warning
+                    show_tier_warning(console, result.total_services)
+                except Exception:
+                    pass
     except Exception:
         pass
 

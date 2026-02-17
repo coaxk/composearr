@@ -20,7 +20,7 @@ def show_closing_credits(console: Console) -> None:
 
     leaderboard = Leaderboard()
     legends = leaderboard.get_top_legends(limit=10)
-    mechas = leaderboard.get_mecha_neckbeards()
+    mechas = leaderboard.get_titans()
 
     if not legends and not mechas:
         return
@@ -30,20 +30,20 @@ def show_closing_credits(console: Console) -> None:
     # Title
     title = Panel(
         "[bold bright_cyan]HALL OF FAME[/]\n\n"
-        "[dim]Honoring those who have transcended...[/]",
+        "[dim]Honoring those who run elite infrastructure...[/]",
         border_style="bright_cyan",
         padding=(1, 4),
     )
     console.print(Align.center(title))
     time.sleep(0.5)
 
-    # MECHA NECKBEARDS
+    # TITANS
     if mechas:
         console.print()
-        mecha_text = _format_mecha_neckbeards(mechas)
+        mecha_text = _format_titans(mechas)
         mecha_panel = Panel(
             mecha_text,
-            title="THE FINAL BOSSES",
+            title="THE TITANS",
             border_style="bright_magenta",
             padding=(1, 2),
         )
@@ -102,14 +102,14 @@ def show_closing_credits(console: Console) -> None:
     console.print()
 
 
-def _format_mecha_neckbeards(mechas: list[dict]) -> str:
-    """Format MECHA NECKBEARD entries for display."""
+def _format_titans(mechas: list[dict]) -> str:
+    """Format TITAN entries for display."""
     total = len(mechas)
     if total == 0:
         return "[dim]None yet... will you be the first?[/]"
 
     lines = [
-        f"[bold]Total MECHA NECKBEARDS: {total}[/]\n",
+        f"[bold]Total TITANS: {total}[/]\n",
         "[dim]You are one of the elite.[/]\n",
     ]
 

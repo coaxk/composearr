@@ -24,7 +24,7 @@ class LeaderboardEntry:
 class Leaderboard:
     """Manages the local leaderboard (~/.composearr/leaderboard.json)."""
 
-    ELIGIBLE_TIERS = {"ENTERPRISE", "DATACENTER", "MECHA_NECKBEARD"}
+    ELIGIBLE_TIERS = {"ENTERPRISE", "DATACENTER", "TITAN"}
 
     def __init__(self, path: Path | None = None) -> None:
         self.leaderboard_file = path or (Path.home() / ".composearr" / "leaderboard.json")
@@ -79,10 +79,10 @@ class Leaderboard:
         legendaries.sort(key=lambda x: x.get("weighted_score", 0), reverse=True)
         return legendaries[:limit]
 
-    def get_mecha_neckbeards(self) -> list[dict]:
-        """Get all MECHA NECKBEARD entries."""
+    def get_titans(self) -> list[dict]:
+        """Get all TITAN entries."""
         entries = self._load()
-        return [e for e in entries if e.get("tier") == "MECHA_NECKBEARD"]
+        return [e for e in entries if e.get("tier") == "TITAN"]
 
     def get_all(self) -> list[dict]:
         """Get all entries sorted by weighted score."""
@@ -105,7 +105,13 @@ class Leaderboard:
         try:
             with open(self.leaderboard_file, encoding="utf-8") as f:
                 data = json.load(f)
-                return data if isinstance(data, list) else []
+                if not isinstance(data, list):
+                    return []
+                # Migrate old tier names
+                for entry in data:
+                    if entry.get("tier") == "MECHA_NECKBEARD":
+                        entry["tier"] = "TITAN"
+                return data
         except (json.JSONDecodeError, OSError):
             return []
 

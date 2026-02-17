@@ -98,8 +98,12 @@ def run_audit(
 
     t0 = time.perf_counter()
     for i, cf in enumerate(parseable):
-        # Parse inline suppressions
-        file_ignored, _, line_suppressions = parse_file_suppressions(cf.raw_content)
+        # Parse inline suppressions (skip if disabled)
+        if config.honor_suppressions:
+            file_ignored, _, line_suppressions = parse_file_suppressions(cf.raw_content)
+        else:
+            file_ignored = False
+            line_suppressions = {}
         if file_ignored:
             if progress:
                 progress.on_progress("per_file", i + 1, str(cf.path.name))

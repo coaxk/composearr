@@ -9,24 +9,23 @@ from composearr.scoring import StackTier, TIER_CONFIG
 
 
 def show_tier_warning(console: Console, service_count: int) -> None:
-    """Show warning when approaching or at MECHA NECKBEARD tier."""
-    services_to_final = 201 - service_count
+    """Show warning when approaching or at TITAN tier."""
+    services_to_titan = 201 - service_count
 
-    if 0 < services_to_final <= 10:
+    if 0 < services_to_titan <= 10:
         console.print()
         console.print(Panel(
-            f"[bold yellow]APPROACHING FINAL BOSS TIER[/]\n\n"
+            f"[bold yellow]APPROACHING TITAN TIER[/]\n\n"
             f"Current: {service_count} services (DATACENTER)\n"
-            f"Next: 201 services (MECHA NECKBEARD)\n"
-            f"Services remaining: [bold]{services_to_final}[/]\n\n"
-            f"[dim]The Final Boss tier awaits...[/]\n\n"
-            f"Disclaimer: Reaching MECHA NECKBEARD may result in:\n"
-            f"  - Questions about your life choices\n"
-            f"  - Hardware costs exceeding car payments\n"
-            f"  - Time investment rivaling a part-time job\n"
-            f"  - Becoming a r/homelab legend\n"
-            f"  - Never explaining your setup to normies again\n\n"
-            f"[bold]Are you ready to transcend?[/]",
+            f"Next: 201 services (TITAN)\n"
+            f"Services remaining: [bold]{services_to_titan}[/]\n\n"
+            f"[dim]The pinnacle awaits...[/]\n\n"
+            f"Reaching TITAN tier means you're running:\n"
+            f"  - More services than most small companies\n"
+            f"  - Infrastructure that rivals production deployments\n"
+            f"  - A stack that demands serious configuration hygiene\n"
+            f"  - The kind of setup that earns respect on r/homelab\n\n"
+            f"[bold]Almost there.[/]",
             border_style="yellow",
             title="WARNING",
         ))
@@ -35,16 +34,15 @@ def show_tier_warning(console: Console, service_count: int) -> None:
     elif service_count >= 201:
         console.print()
         console.print(Panel(
-            f"[bold bright_magenta]FINAL BOSS ACHIEVED[/]\n\n"
-            f"[bold bright_magenta]MECHA NECKBEARD TIER UNLOCKED[/]\n\n"
-            f"You are no longer bound by mortal limits\n\n"
+            f"[bold bright_magenta]TITAN TIER ACHIEVED[/]\n\n"
+            f"You've reached the pinnacle of stack management.\n\n"
             f"  Services: {service_count}\n"
-            f"  Status: TRANSCENDED\n\n"
-            f'  "Are you even human?"\n'
-            f"         - ComposeArr\n\n"
-            f"[green]Achievement Unlocked: THE FINAL BOSS[/]\n"
-            f"[dim]Secret Achievement: TOUCH GRASS (jk you're amazing)[/]",
+            f"  Status: Elite\n\n"
+            f"  Few run infrastructure at this scale.\n"
+            f"  Fewer still keep it healthy.\n\n"
+            f"[green]Achievement Unlocked: TITAN[/]\n"
+            f"[dim]Your stack hygiene matters more than ever at this scale.[/]",
             border_style="bright_magenta",
-            title="TRANSCENDED",
+            title="TITAN",
         ))
         console.print()

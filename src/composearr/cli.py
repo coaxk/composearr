@@ -94,6 +94,7 @@ def audit(
     no_network: bool = typer.Option(False, "--no-network", help="Disable network features (tag analysis)"),
     output: str = typer.Option(None, "--output", "-o", help="Output file path (auto-named for non-console formats)"),
     explain: bool = typer.Option(False, "--explain", "-e", help="Show detailed explanations for each triggered rule"),
+    no_suppression: bool = typer.Option(False, "--no-suppression", help="Ignore inline suppression comments"),
 ) -> None:
     """Scan Docker Compose files for issues."""
     if path is None:
@@ -121,18 +122,24 @@ def audit(
     from composearr.rules.CA0xx_images import set_network_enabled
     set_network_enabled(not no_network)
 
+    # Configure suppression
+    from composearr.config import load_config
+    audit_config = load_config(root)
+    if no_suppression:
+        audit_config.honor_suppressions = False
+
     # Run audit with progress (stderr for machine formats so piping works)
     if output_format in ("json", "github", "sarif"):
         import sys as _sys
         if _sys.stderr.isatty():
             reporter = RichProgressReporter(stderr_mode=True)
-            result = run_audit(root, progress=reporter)
+            result = run_audit(root, config=audit_config, progress=reporter)
         else:
-            result = run_audit(root)
+            result = run_audit(root, config=audit_config)
     else:
         reporter = RichProgressReporter(console)
         console.print()
-        result = run_audit(root, progress=reporter)
+        result = run_audit(root, config=audit_config, progress=reporter)
         console.print()
 
     # Filter by rule (before rendering)
@@ -244,6 +251,7 @@ def fix(
     preview: bool = typer.Option(False, "--preview", "-p", help="Show colored diff preview of changes before applying"),
     no_backup: bool = typer.Option(False, "--no-backup", help="Skip creating .bak backup files"),
     no_network: bool = typer.Option(False, "--no-network", help="Disable network features (tag analysis)"),
+    no_suppression: bool = typer.Option(False, "--no-suppression", help="Ignore inline suppression comments"),
 ) -> None:
     """Apply auto-fixes to Docker Compose files."""
     if path is None:

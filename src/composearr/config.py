@@ -91,6 +91,8 @@ class Config:
     ignore_patterns: list[str] = field(default_factory=list)
     ignore_services: list[str] = field(default_factory=list)
     stack_path: str | None = None
+    honor_suppressions: bool = True
+    gamification: bool = True
 
     def is_rule_enabled(self, rule_id: str) -> bool:
         return self.rules.get(rule_id, "warning") != "off"
@@ -123,6 +125,12 @@ class Config:
 
         if "stack_path" in other and other["stack_path"]:
             self.stack_path = str(other["stack_path"])
+
+        if "honor_suppressions" in other:
+            self.honor_suppressions = bool(other["honor_suppressions"])
+
+        if "gamification" in other:
+            self.gamification = bool(other["gamification"])
 
         if "ignore" in other:
             ignore = other["ignore"]
@@ -180,34 +188,12 @@ _IGNORE_FILE_PATTERN = re.compile(r"#\s*composearr-ignore-file")
 def parse_file_suppressions(raw_content: str) -> tuple[bool, set[str], dict[int, set[str]]]:
     """Parse inline suppression comments from a YAML file.
 
+    Delegates to SuppressionParser which supports both comment formats:
+        # composearr-ignore: CA001
+        # composearr: ignore CA001
+
     Returns:
         (file_ignored, service_ignored_set, line_suppressions_dict)
-        - file_ignored: True if # composearr-ignore-file found
-        - service_ignored_set: service names marked with composearr-ignore-service
-        - line_suppressions_dict: {line_number: set of rule IDs suppressed}
     """
-    file_ignored = False
-    line_suppressions: dict[int, set[str]] = {}
-
-    for i, line in enumerate(raw_content.splitlines(), start=1):
-        # File-level suppression
-        if _IGNORE_FILE_PATTERN.search(line):
-            file_ignored = True
-            break
-
-        # Line-level suppression
-        match = _IGNORE_PATTERN.search(line)
-        if match:
-            rules_str = match.group(1).strip()
-            rule_ids = set()
-            for r in rules_str.split(","):
-                r = r.strip()
-                # Accept both rule names and IDs
-                rule_id = _RULE_NAME_TO_ID.get(r, r.upper() if r.startswith("CA") or r.startswith("ca") else r)
-                rule_ids.add(rule_id)
-
-            # Suppression applies to the next non-comment line, or this line if inline
-            line_suppressions[i] = rule_ids
-            line_suppressions[i + 1] = rule_ids  # Also apply to next line
-
-    return file_ignored, set(), line_suppressions
+    from composearr.suppression import SuppressionParser
+    return SuppressionParser().parse(raw_content)

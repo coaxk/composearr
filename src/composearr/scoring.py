@@ -37,7 +37,7 @@ class StackTier(Enum):
     POWER_USER = "POWER_USER"     # 31-60 services
     ENTERPRISE = "ENTERPRISE"     # 61-100 services
     DATACENTER = "DATACENTER"     # 101-200 services
-    MECHA_NECKBEARD = "MECHA_NECKBEARD"  # 201+ services
+    TITAN = "TITAN"  # 201+ services
 
 
 TIER_CONFIG = {
@@ -83,12 +83,12 @@ TIER_CONFIG = {
         "description": "Absolute madlad territory",
         "power_level": "Super Saiyan",
     },
-    StackTier.MECHA_NECKBEARD: {
+    StackTier.TITAN: {
         "range": (201, float("inf")),
-        "emoji": "\U0001f916",
+        "emoji": "\u26a1",
         "multiplier": 3.0,
-        "description": "THE FINAL BOSS \u2014 Are you even human?",
-        "power_level": "Ultra Instinct",
+        "description": "Elite infrastructure \u2014 top tier",
+        "power_level": "Exceptional",
     },
 }
 
@@ -99,7 +99,7 @@ def get_stack_tier(service_count: int) -> StackTier:
         min_svc, max_svc = config["range"]
         if min_svc <= service_count <= max_svc:
             return tier
-    return StackTier.MECHA_NECKBEARD
+    return StackTier.TITAN
 
 
 @dataclass
@@ -142,8 +142,8 @@ class StackScore:
     def get_display_grade(self) -> str:
         """Get display grade with tier emoji."""
         emoji = TIER_CONFIG[self.tier]["emoji"]
-        if self.tier == StackTier.MECHA_NECKBEARD and self.is_legendary():
-            return f"{emoji} MECHA NECKBEARD LEGENDARY"
+        if self.tier == StackTier.TITAN and self.is_legendary():
+            return f"{emoji} TITAN LEGENDARY"
         if self.is_legendary():
             return f"{emoji} LEGENDARY"
         return f"{emoji} {self.grade}"

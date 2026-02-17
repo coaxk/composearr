@@ -274,23 +274,23 @@ class ConsoleFormatter:
         tier_desc = tier_cfg["description"]
         power_level = tier_cfg["power_level"]
 
-        # MECHA NECKBEARD special display
-        if score.tier == StackTier.MECHA_NECKBEARD:
+        # TITAN special display
+        if score.tier == StackTier.TITAN:
             if score.is_legendary():
-                self.console.print(f"  [bold bright_magenta]{tier_emoji} MECHA NECKBEARD LEGENDARY {tier_emoji}[/]")
+                self.console.print(f"  [bold bright_magenta]{tier_emoji} TITAN LEGENDARY {tier_emoji}[/]")
             else:
-                self.console.print(f"  [bold bright_magenta]{tier_emoji} {score.grade} - FINAL BOSS[/]  {_muted(f'{score.overall}/100')}")
+                self.console.print(f"  [bold bright_magenta]{tier_emoji} {score.grade} - TITAN[/]  {_muted(f'{score.overall}/100')}")
 
-            # Boss health bar
-            health_bar = "\u2588" * 20
-            self.console.print(f"  [bold bright_magenta]Boss Health Bar:[/]")
+            # Scale bar
+            scale_bar = "\u2588" * 20
+            self.console.print(f"  [bold bright_magenta]Scale:[/]")
             self.console.print(
-                f"  {tier_emoji} MECHA NECKBEARD [{health_bar}] "
+                f"  {tier_emoji} TITAN [{scale_bar}] "
                 f"{score.total_services}/{score.total_services}"
             )
             status_text = "LEGENDARY" if score.is_legendary() else "ACTIVE"
             self.console.print(f"  {_muted(f'Status: {status_text}')}")
-            self.console.print(f"  {_muted('Threat Level: MAXIMUM')}")
+            self.console.print(f"  {_muted('Scale: Elite')}")
         elif score.is_legendary():
             self.console.print(f"  [bold {C_OK}]{score.get_display_grade()}[/]  {_muted(f'{score.overall}/100')}")
         else:

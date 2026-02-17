@@ -86,10 +86,10 @@ class TestStackTier:
         assert get_stack_tier(150) == StackTier.DATACENTER
         assert get_stack_tier(200) == StackTier.DATACENTER
 
-    def test_tier_mecha_neckbeard(self) -> None:
-        assert get_stack_tier(201) == StackTier.MECHA_NECKBEARD
-        assert get_stack_tier(500) == StackTier.MECHA_NECKBEARD
-        assert get_stack_tier(9999) == StackTier.MECHA_NECKBEARD
+    def test_tier_titan(self) -> None:
+        assert get_stack_tier(201) == StackTier.TITAN
+        assert get_stack_tier(500) == StackTier.TITAN
+        assert get_stack_tier(9999) == StackTier.TITAN
 
 
 # ===========================================================================
@@ -140,9 +140,9 @@ class TestWeightedScore:
         assert score.tier_multiplier == 1.1
         assert score.weighted_score == int(score.overall * 1.1)
 
-    def test_mecha_neckbeard_multiplier_3x(self) -> None:
+    def test_titan_multiplier_3x(self) -> None:
         score = calculate_stack_score([], 250)
-        assert score.tier == StackTier.MECHA_NECKBEARD
+        assert score.tier == StackTier.TITAN
         assert score.tier_multiplier == 3.0
         assert score.weighted_score == int(score.overall * 3.0)
 
@@ -160,7 +160,7 @@ class TestWeightedScore:
     def test_zero_services_defaults_to_starter(self) -> None:
         score = calculate_stack_score([], 0)
         # 0 is below the STARTER range minimum (1), but get_stack_tier
-        # falls through to MECHA_NECKBEARD as a default.  Verify we get
+        # falls through to TITAN as a default.  Verify we get
         # *some* tier assigned and the score is populated.
         assert score.tier in list(StackTier)
         assert score.overall == 100
@@ -212,11 +212,11 @@ class TestStackScoreMethods:
         display = score.get_display_grade()
         assert "LEGENDARY" in display
 
-    def test_get_display_grade_mecha_legendary(self) -> None:
+    def test_get_display_grade_titan_legendary(self) -> None:
         score = calculate_stack_score([], 250)
         assert score.is_legendary()
         display = score.get_display_grade()
-        assert "MECHA NECKBEARD LEGENDARY" in display
+        assert "TITAN LEGENDARY" in display
 
     def test_approaching_next_tier(self) -> None:
         # 55 services -> POWER_USER (31-60), next is ENTERPRISE (61+)
@@ -237,9 +237,9 @@ class TestStackScoreMethods:
         assert needed == 0
 
     def test_approaching_next_tier_at_max(self) -> None:
-        # 300 services -> MECHA_NECKBEARD, no tier above
+        # 300 services -> TITAN, no tier above
         score = calculate_stack_score([], 300)
-        assert score.tier == StackTier.MECHA_NECKBEARD
+        assert score.tier == StackTier.TITAN
         approaching, next_tier, needed = score.approaching_next_tier()
         assert approaching is False
         assert next_tier is None
@@ -340,12 +340,12 @@ class TestLeaderboard:
         assert legends[1]["weighted_score"] == 170
         assert legends[2]["weighted_score"] == 150
 
-    def test_get_mecha_neckbeards(self, tmp_path) -> None:
+    def test_get_titans(self, tmp_path) -> None:
         lb = Leaderboard(path=tmp_path / "leaderboard.json")
         entries = [
             {
                 "user_id": "mecha_1",
-                "tier": "MECHA_NECKBEARD",
+                "tier": "TITAN",
                 "weighted_score": 300,
                 "service_count": 250,
                 "is_legendary": True,
@@ -361,9 +361,9 @@ class TestLeaderboard:
             },
         ]
         lb.leaderboard_file.write_text(json.dumps(entries), encoding="utf-8")
-        mechas = lb.get_mecha_neckbeards()
-        assert len(mechas) == 1
-        assert mechas[0]["user_id"] == "mecha_1"
+        titans = lb.get_titans()
+        assert len(titans) == 1
+        assert titans[0]["user_id"] == "mecha_1"
 
     def test_leaderboard_file_created(self, tmp_path) -> None:
         lb_path = tmp_path / "sub" / "leaderboard.json"
@@ -404,7 +404,7 @@ class TestLeaderboard:
             },
             {
                 "user_id": "c",
-                "tier": "MECHA_NECKBEARD",
+                "tier": "TITAN",
                 "weighted_score": 300,
                 "service_count": 250,
                 "is_legendary": True,
@@ -436,7 +436,7 @@ class TestTierWarning:
         console, buf = _capture_console()
         show_tier_warning(console, 201)
         text = buf.getvalue()
-        assert "TRANSCENDED" in text or "FINAL BOSS" in text
+        assert "TRANSCENDED" in text or "TITAN" in text
 
     def test_no_warning_at_50_services(self) -> None:
         console, buf = _capture_console()
@@ -465,7 +465,7 @@ class TestClosingCredits:
         with patch("composearr.leaderboard.Leaderboard") as MockLB:
             instance = MockLB.return_value
             instance.get_top_legends.return_value = []
-            instance.get_mecha_neckbeards.return_value = []
+            instance.get_titans.return_value = []
             show_closing_credits(console)
         text = buf.getvalue()
         # No output when leaderboard is empty
@@ -484,16 +484,16 @@ class TestClosingCredits:
         with patch("composearr.leaderboard.Leaderboard") as MockLB:
             instance = MockLB.return_value
             instance.get_top_legends.return_value = [legend_entry]
-            instance.get_mecha_neckbeards.return_value = []
+            instance.get_titans.return_value = []
             show_closing_credits(console)
         text = buf.getvalue()
         assert "HALL OF FAME" in text
 
-    def test_credits_with_mecha(self, tmp_path) -> None:
+    def test_credits_with_titan(self, tmp_path) -> None:
         console, buf = _capture_console()
-        mecha_entry = {
+        titan_entry = {
             "user_id": "mecha999aaa12",
-            "tier": "MECHA_NECKBEARD",
+            "tier": "TITAN",
             "weighted_score": 300,
             "service_count": 250,
             "is_legendary": True,
@@ -501,11 +501,11 @@ class TestClosingCredits:
         }
         with patch("composearr.leaderboard.Leaderboard") as MockLB:
             instance = MockLB.return_value
-            instance.get_top_legends.return_value = [mecha_entry]
-            instance.get_mecha_neckbeards.return_value = [mecha_entry]
+            instance.get_top_legends.return_value = [titan_entry]
+            instance.get_titans.return_value = [titan_entry]
             show_closing_credits(console)
         text = buf.getvalue()
-        assert "THE FINAL BOSSES" in text
+        assert "THE TITANS" in text
 
 
 # ===========================================================================
@@ -565,9 +565,9 @@ class TestEdgeCases:
         assert get_stack_tier(6) == StackTier.HOMELAB
 
     def test_tier_boundary_200_to_201(self) -> None:
-        """Boundary between DATACENTER and MECHA_NECKBEARD."""
+        """Boundary between DATACENTER and TITAN."""
         assert get_stack_tier(200) == StackTier.DATACENTER
-        assert get_stack_tier(201) == StackTier.MECHA_NECKBEARD
+        assert get_stack_tier(201) == StackTier.TITAN
 
     def test_error_cap_at_b(self) -> None:
         """Any error caps the overall score at B (83)."""
@@ -594,11 +594,11 @@ class TestEdgeCases:
         assert score.tier == StackTier.DATACENTER
         assert lb.submit_score(score) is True
 
-    def test_leaderboard_submit_mecha(self, tmp_path) -> None:
-        """MECHA_NECKBEARD tier is eligible for the leaderboard."""
+    def test_leaderboard_submit_titan(self, tmp_path) -> None:
+        """TITAN tier is eligible for the leaderboard."""
         lb = Leaderboard(path=tmp_path / "leaderboard.json")
         score = calculate_stack_score([], 250)
-        assert score.tier == StackTier.MECHA_NECKBEARD
+        assert score.tier == StackTier.TITAN
         assert lb.submit_score(score) is True
 
     def test_leaderboard_ineligible_tiers(self, tmp_path) -> None:
