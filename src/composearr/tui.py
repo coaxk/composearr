@@ -1981,6 +1981,7 @@ def _tui_secure_secrets(console: Console, session: dict) -> None:
         message="What would you like to do?",
         choices=[
             Choice(value="extract", name="\U0001f512 Extract secrets \u2014 scan compose files and move inline secrets to .env"),
+            Choice(value="smart_env", name="\U0001f4e6 Smart Env Extraction \u2014 split central .env into per-stack files"),
             Choice(value="view", name="\U0001f4cb View .env files \u2014 see all variables across your stack (values masked)"),
             Choice(value="add", name="\u2795  Add variable \u2014 add a new secret to a .env file"),
             *_nav_choices(),
@@ -1994,6 +1995,8 @@ def _tui_secure_secrets(console: Console, session: dict) -> None:
 
     if action == "extract":
         _tui_extract_secrets(console, session)
+    elif action == "smart_env":
+        _tui_smart_env_extraction(console, session)
     elif action == "view":
         _tui_view_env_files(console, session)
     elif action == "add":
@@ -2515,6 +2518,187 @@ def _mask_value(value: str) -> str:
     if len(value) > 8:
         return value[:4] + "\u2022" * min(len(value) - 4, 16)
     return "\u2022" * len(value)
+
+
+def _tui_smart_env_extraction(console: Console, session: dict) -> None:
+    """Smart Env Extraction — split a central .env into per-stack .env files."""
+    from rich.panel import Panel
+    from rich.table import Table
+
+    from composearr.central_env_analyzer import (
+        get_extraction_preview,
+        map_vars_to_stacks,
+        parse_central_env,
+    )
+    from composearr.compose_env_updater import update_env_file_reference
+    from composearr.gitignore_manager import ensure_env_in_gitignore
+    from composearr.stack_env_generator import write_stack_env
+
+    _section_header(
+        console, "Smart Env Extraction",
+        "Split a central .env file into per-stack .env files",
+    )
+
+    console.print(f"  [{C_TEXT}]This tool takes a single central .env file and distributes[/]")
+    console.print(f"  [{C_TEXT}]the right variables to each stack's own .env file.[/]")
+    console.print()
+    console.print(f"  [{C_MUTED}]Benefits:[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Each stack has only its own secrets[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Works with ALL deployment tools (Portainer, Dockge, Komodo, CLI)[/]")
+    console.print(f"    [{C_MUTED}]\u2022 Per-stack .env files can be git-ignored[/]")
+    console.print(f"    [{C_MUTED}]\u2022 docker compose commands work unchanged[/]")
+    console.print()
+
+    # Step 1: Get the stack directory
+    path = _resolve_path(console, session)
+    if path is None:
+        return
+    root = Path(path).resolve()
+
+    # Step 2: Find central .env
+    central_env = root / ".env"
+    if not central_env.is_file():
+        # Ask user to locate it
+        env_input = inquirer.text(
+            message="Path to central .env file:",
+            default=str(central_env),
+            validate=lambda p: Path(p).is_file() or "File not found",
+        ).execute()
+        central_env = Path(env_input).resolve()
+
+    # Step 3: Parse and analyze
+    console.print()
+    console.print(f"  [{C_MUTED}]Analyzing {central_env.name}...[/]")
+    env_vars = parse_central_env(central_env)
+
+    if not env_vars:
+        console.print(f"  [{C_ERR}]\u2717[/] [{C_TEXT}]No variables found in {central_env}[/]")
+        _pause(console)
+        return
+
+    console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Found {len(env_vars)} variables[/]")
+
+    # Step 4: Map to stacks
+    stack_mapping = map_vars_to_stacks(env_vars, root)
+
+    if not stack_mapping:
+        console.print(f"  [{C_ERR}]\u2717[/] [{C_TEXT}]No stack directories found with compose files[/]")
+        _pause(console)
+        return
+
+    console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Mapped to {len(stack_mapping)} stacks[/]")
+    console.print()
+
+    # Step 5: Show preview
+    preview = get_extraction_preview(env_vars, stack_mapping)
+
+    table = Table(
+        title="Extraction Preview",
+        show_header=True,
+        header_style=f"bold {C_TEAL}",
+        border_style=C_DIM,
+        pad_edge=False,
+    )
+    table.add_column("Stack", style=C_TEXT)
+    table.add_column("Common", style=C_MUTED, justify="center")
+    table.add_column("Secrets", style=C_WARN, justify="center")
+    table.add_column("Config", style=C_INFO, justify="center")
+    table.add_column("Total", style=f"bold {C_TEXT}", justify="center")
+
+    for stack_name in sorted(preview):
+        cats = preview[stack_name]
+        n_common = len(cats.get("common", []))
+        n_secrets = len(cats.get("secrets", []))
+        n_other = len(cats.get("stack_specific", [])) + len(cats.get("shared", []))
+        total = len(stack_mapping[stack_name])
+        table.add_row(
+            stack_name,
+            str(n_common) if n_common else "-",
+            str(n_secrets) if n_secrets else "-",
+            str(n_other) if n_other else "-",
+            str(total),
+        )
+
+    console.print(table)
+    console.print()
+
+    # Step 6: Confirm
+    proceed = inquirer.select(
+        message="Proceed with extraction?",
+        choices=[
+            Choice(value="yes", name="\u2713 Yes \u2014 create per-stack .env files"),
+            Choice(value="preview", name="\U0001f50d Show details \u2014 list variables per stack"),
+            *_nav_choices(),
+        ],
+        default="yes",
+    ).execute()
+
+    if _check_nav(proceed):
+        return
+
+    if proceed == "preview":
+        # Show detailed breakdown
+        for stack_name in sorted(preview):
+            cats = preview[stack_name]
+            console.print(f"\n  [bold {C_TEAL}]{stack_name}[/]")
+            for category, var_names in cats.items():
+                if var_names:
+                    console.print(f"    [{C_MUTED}]{category}:[/] {', '.join(var_names)}")
+
+        console.print()
+        final = inquirer.confirm(
+            message="Proceed with extraction?",
+            default=True,
+        ).execute()
+        if not final:
+            console.print(f"  [{C_MUTED}]Cancelled[/]")
+            return
+
+    # Step 7: Execute extraction
+    console.print()
+    created_count = 0
+    updated_count = 0
+    gitignore_count = 0
+
+    for stack_name, stack_vars in sorted(stack_mapping.items()):
+        stack_dir = root / stack_name
+        if not stack_dir.is_dir():
+            continue
+
+        # Write .env
+        env_path = write_stack_env(stack_dir, stack_name, stack_vars, overwrite=False)
+        created_count += 1
+        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]{stack_name}/.env[/]  [{C_MUTED}]{len(stack_vars)} variables[/]")
+
+        # Update compose.yaml
+        compose_file = stack_dir / "compose.yaml"
+        if not compose_file.is_file():
+            compose_file = stack_dir / "docker-compose.yml"
+
+        if compose_file.is_file():
+            changed = update_env_file_reference(compose_file, new_env_path=".env")
+            if changed:
+                updated_count += 1
+                console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]{stack_name}/{compose_file.name}[/]  [{C_MUTED}]env_file \u2192 .env[/]")
+
+        # Update .gitignore
+        if ensure_env_in_gitignore(stack_dir):
+            gitignore_count += 1
+
+    # Step 8: Summary
+    console.print()
+    console.print(Panel(
+        f"[bold {C_OK}]Smart Env Extraction Complete[/]\n\n"
+        f"  [{C_TEXT}]Created:[/] [{C_TEAL}]{created_count}[/] [{C_MUTED}]per-stack .env files[/]\n"
+        f"  [{C_TEXT}]Updated:[/] [{C_TEAL}]{updated_count}[/] [{C_MUTED}]compose files (env_file \u2192 .env)[/]\n"
+        f"  [{C_TEXT}]Secured:[/] [{C_TEAL}]{gitignore_count}[/] [{C_MUTED}].gitignore files updated[/]\n\n"
+        f"  [{C_MUTED}]Your stacks now use local .env files.[/]\n"
+        f"  [{C_MUTED}]Test with: docker compose logs (should work!)[/]\n"
+        f"  [{C_MUTED}]The central .env can be kept as backup or removed.[/]",
+        border_style=C_OK,
+    ))
+
+    _pause(console)
 
 
 def _tui_view_env_files(console: Console, session: dict) -> None:
