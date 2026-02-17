@@ -45,50 +45,61 @@ def _capture_console() -> tuple[Console, StringIO]:
 
 
 # ===========================================================================
-# Terminology — TITAN replaces MECHA_NECKBEARD
+# Terminology — Professional tier names
 # ===========================================================================
 
 
-class TestTitanTerminology:
-    """Verify MECHA_NECKBEARD is fully replaced by TITAN."""
+class TestProfessionalTerminology:
+    """Verify professional tier naming throughout."""
 
-    def test_titan_enum_exists(self) -> None:
-        assert hasattr(StackTier, "TITAN")
-        assert StackTier.TITAN.value == "TITAN"
+    def test_infrastructure_enum_exists(self) -> None:
+        assert hasattr(StackTier, "INFRASTRUCTURE")
+        assert StackTier.INFRASTRUCTURE.value == "INFRASTRUCTURE"
+
+    def test_professional_enum_exists(self) -> None:
+        assert hasattr(StackTier, "PROFESSIONAL")
+        assert StackTier.PROFESSIONAL.value == "PROFESSIONAL"
 
     def test_no_mecha_neckbeard_enum(self) -> None:
         assert not hasattr(StackTier, "MECHA_NECKBEARD")
 
-    def test_titan_in_tier_config(self) -> None:
-        assert StackTier.TITAN in TIER_CONFIG
+    def test_no_power_user_enum(self) -> None:
+        assert not hasattr(StackTier, "POWER_USER")
 
-    def test_titan_range(self) -> None:
-        cfg = TIER_CONFIG[StackTier.TITAN]
+    def test_no_titan_enum(self) -> None:
+        assert not hasattr(StackTier, "TITAN")
+
+    def test_infrastructure_in_tier_config(self) -> None:
+        assert StackTier.INFRASTRUCTURE in TIER_CONFIG
+
+    def test_infrastructure_range(self) -> None:
+        cfg = TIER_CONFIG[StackTier.INFRASTRUCTURE]
         assert cfg["range"][0] == 201
 
     def test_get_stack_tier_201(self) -> None:
-        assert get_stack_tier(201) == StackTier.TITAN
+        assert get_stack_tier(201) == StackTier.INFRASTRUCTURE
 
     def test_get_stack_tier_500(self) -> None:
-        assert get_stack_tier(500) == StackTier.TITAN
+        assert get_stack_tier(500) == StackTier.INFRASTRUCTURE
 
-    def test_titan_multiplier(self) -> None:
-        assert TIER_CONFIG[StackTier.TITAN]["multiplier"] == 3.0
+    def test_infrastructure_multiplier(self) -> None:
+        assert TIER_CONFIG[StackTier.INFRASTRUCTURE]["multiplier"] == 3.0
 
-    def test_score_display_grade_titan(self) -> None:
+    def test_score_display_grade_infrastructure(self) -> None:
         score = calculate_stack_score([], 250)
         display = score.get_display_grade()
-        assert "TITAN" in display
+        assert "INFRASTRUCTURE" in display
 
     def test_leaderboard_eligible_tiers(self) -> None:
-        assert "TITAN" in Leaderboard.ELIGIBLE_TIERS
+        assert "INFRASTRUCTURE" in Leaderboard.ELIGIBLE_TIERS
         assert "MECHA_NECKBEARD" not in Leaderboard.ELIGIBLE_TIERS
+        assert "TITAN" not in Leaderboard.ELIGIBLE_TIERS
 
-    def test_leaderboard_get_titans(self) -> None:
-        assert hasattr(Leaderboard, "get_titans")
+    def test_leaderboard_get_infrastructure(self) -> None:
+        assert hasattr(Leaderboard, "get_infrastructure")
 
-    def test_leaderboard_migration(self, tmp_path: Path) -> None:
-        """Old MECHA_NECKBEARD entries should be migrated to TITAN on load."""
+    def test_leaderboard_migration_mecha(self, tmp_path: Path) -> None:
+        """Old MECHA_NECKBEARD entries should be migrated to INFRASTRUCTURE."""
         import json
         lb_file = tmp_path / "leaderboard.json"
         lb_file.write_text(json.dumps([{
@@ -102,7 +113,24 @@ class TestTitanTerminology:
 
         lb = Leaderboard(path=lb_file)
         entries = lb.get_all()
-        assert entries[0]["tier"] == "TITAN"
+        assert entries[0]["tier"] == "INFRASTRUCTURE"
+
+    def test_leaderboard_migration_titan(self, tmp_path: Path) -> None:
+        """Old TITAN entries should be migrated to INFRASTRUCTURE."""
+        import json
+        lb_file = tmp_path / "leaderboard.json"
+        lb_file.write_text(json.dumps([{
+            "user_id": "test456",
+            "tier": "TITAN",
+            "weighted_score": 300,
+            "service_count": 250,
+            "is_legendary": True,
+            "timestamp": "2026-01-01T00:00:00",
+        }]), encoding="utf-8")
+
+        lb = Leaderboard(path=lb_file)
+        entries = lb.get_all()
+        assert entries[0]["tier"] == "INFRASTRUCTURE"
 
     def test_warnings_no_mecha(self) -> None:
         from composearr.warnings import show_tier_warning
@@ -110,14 +138,19 @@ class TestTitanTerminology:
         show_tier_warning(console, 201)
         output = buf.getvalue()
         assert "MECHA" not in output
-        assert "TITAN" in output
+        assert "INFRASTRUCTURE" in output
 
-    def test_warnings_approaching_titan(self) -> None:
+    def test_warnings_approaching_infrastructure(self) -> None:
         from composearr.warnings import show_tier_warning
         console, buf = _capture_console()
         show_tier_warning(console, 195)
         output = buf.getvalue()
-        assert "TITAN" in output
+        assert "INFRASTRUCTURE" in output
+
+    def test_no_power_level_in_config(self) -> None:
+        """No tier config should have a power_level key."""
+        for tier, cfg in TIER_CONFIG.items():
+            assert "power_level" not in cfg, f"{tier} still has power_level"
 
 
 # ===========================================================================
@@ -200,30 +233,44 @@ class TestSuppressionParser:
 
 
 class TestConfigFields:
-    """Tests for new Config fields."""
+    """Tests for Config fields."""
 
     def test_honor_suppressions_default(self) -> None:
         config = Config()
         assert config.honor_suppressions is True
-
-    def test_gamification_default(self) -> None:
-        config = Config()
-        assert config.gamification is True
 
     def test_honor_suppressions_merge_false(self) -> None:
         config = Config()
         config.merge({"honor_suppressions": False})
         assert config.honor_suppressions is False
 
-    def test_gamification_merge_false(self) -> None:
+    def test_leaderboard_disabled_by_default(self) -> None:
         config = Config()
-        config.merge({"gamification": False})
-        assert config.gamification is False
+        assert config.leaderboard_enabled is False
 
-    def test_gamification_merge_true(self) -> None:
+    def test_show_tier_warnings_off_by_default(self) -> None:
         config = Config()
-        config.merge({"gamification": True})
-        assert config.gamification is True
+        assert config.show_tier_warnings is False
+
+    def test_show_achievements_off_by_default(self) -> None:
+        config = Config()
+        assert config.show_achievements is False
+
+    def test_show_tier_info_on_by_default(self) -> None:
+        config = Config()
+        assert config.show_tier_info is True
+
+    def test_display_merge(self) -> None:
+        config = Config()
+        config.merge({"display": {"show_tier_warnings": True, "show_achievements": True}})
+        assert config.show_tier_warnings is True
+        assert config.show_achievements is True
+
+    def test_leaderboard_merge(self) -> None:
+        config = Config()
+        config.merge({"leaderboard": {"enabled": True, "show_on_exit": True}})
+        assert config.leaderboard_enabled is True
+        assert config.show_stats_on_exit is True
 
 
 # ===========================================================================
@@ -339,11 +386,28 @@ class TestFirstRunMarker:
 class TestFeatureCuts:
     """Tests for feature cut/demotion decisions."""
 
-    def test_gamification_disables_credits(self) -> None:
-        """When gamification is False, credits should not show."""
+    def test_leaderboard_off_by_default(self) -> None:
+        """Leaderboard should be disabled by default."""
         config = Config()
-        config.gamification = False
-        assert config.gamification is False
+        assert config.leaderboard_enabled is False
+
+    def test_grammarly_tagline_in_tui(self) -> None:
+        """'Grammarly for Docker Compose' should appear in TUI source."""
+        src = Path("src/composearr/tui.py").read_text(encoding="utf-8")
+        assert "Grammarly for Docker Compose" in src
+
+    def test_no_ascii_art_in_tui(self) -> None:
+        """No Roll Safe or whale ASCII art should remain in TUI."""
+        src = Path("src/composearr/tui.py").read_text(encoding="utf-8")
+        assert "ROLL_SAFE" not in src
+        assert "_load_ansi_art" not in src
+        assert "WHALE_FALLBACK" not in src
+
+    def test_no_taglines_in_tui(self) -> None:
+        """No playful exit taglines should remain."""
+        src = Path("src/composearr/tui.py").read_text(encoding="utf-8")
+        assert "Do you even YAML" not in src
+        assert "Caring aggressively" not in src
 
     def test_watch_mode_in_analysis_tools(self) -> None:
         """Watch Mode should be in analysis tools, not main menu."""

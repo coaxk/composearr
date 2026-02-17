@@ -92,7 +92,12 @@ class Config:
     ignore_services: list[str] = field(default_factory=list)
     stack_path: str | None = None
     honor_suppressions: bool = True
-    gamification: bool = True
+    show_tier_info: bool = True
+    show_weighted_score: bool = True
+    show_tier_warnings: bool = False
+    show_achievements: bool = False
+    leaderboard_enabled: bool = False
+    show_stats_on_exit: bool = False
 
     def is_rule_enabled(self, rule_id: str) -> bool:
         return self.rules.get(rule_id, "warning") != "off"
@@ -129,8 +134,20 @@ class Config:
         if "honor_suppressions" in other:
             self.honor_suppressions = bool(other["honor_suppressions"])
 
-        if "gamification" in other:
-            self.gamification = bool(other["gamification"])
+        # Display settings
+        if "display" in other and isinstance(other["display"], dict):
+            display = other["display"]
+            for key in ("show_tier_info", "show_weighted_score", "show_tier_warnings", "show_achievements"):
+                if key in display:
+                    setattr(self, key, bool(display[key]))
+
+        # Leaderboard settings
+        if "leaderboard" in other and isinstance(other["leaderboard"], dict):
+            lb = other["leaderboard"]
+            if "enabled" in lb:
+                self.leaderboard_enabled = bool(lb["enabled"])
+            if "show_on_exit" in lb:
+                self.show_stats_on_exit = bool(lb["show_on_exit"])
 
         if "ignore" in other:
             ignore = other["ignore"]

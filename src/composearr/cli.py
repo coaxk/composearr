@@ -24,7 +24,7 @@ from composearr.security.input_validator import validate_scan_path
 
 app = typer.Typer(
     name="composearr",
-    help="Caring aggressively about your YAMLs since 2026.",
+    help="Docker Compose linter and advisor. Catch configuration mistakes before they cause incidents.",
     no_args_is_help=False,
     add_completion=False,
     invoke_without_command=True,
@@ -50,19 +50,6 @@ def _validate_path(root: Path, raw: str | None) -> None:
         raise typer.Exit(code=2)
 
 
-WHALE_ART = (
-    "[#3b82f6]"
-    "\n                    ##         ."
-    "\n              ## ## ##        =="
-    "\n           ## ## ## ## ##    ==="
-    '\n       /"""""""""""""""""\\___/ ==='
-    "\n      {                       /  ===-"
-    "\n       \\______ O           __/"
-    "\n         \\    \\         __/"
-    "\n          \\____\\_______/[/]"
-)
-
-
 def version_callback(value: bool) -> None:
     if value:
         console.print(f"composearr v{__version__}")
@@ -76,7 +63,7 @@ def main(
         False, "--version", "-v", help="Show version", callback=version_callback, is_eager=True
     ),
 ) -> None:
-    """ComposeArr — caring aggressively about your YAMLs since 2026."""
+    """ComposeArr — Docker Compose linter and advisor."""
     if ctx.invoked_subcommand is None:
         from composearr.tui import launch_tui
         launch_tui()
@@ -203,7 +190,7 @@ def audit(
             err_console = Console(file=_sys.stderr, highlight=False)
             err_console.print(f"\n  [{C_OK}]\u2713[/] Saved to [{C_TEAL}]{out_path}[/]")
 
-    # Save to audit history and submit to leaderboard
+    # Save to audit history
     try:
         from composearr.history import AuditHistory
         from composearr.scoring import calculate_stack_score
@@ -221,20 +208,6 @@ def audit(
             services_scanned=result.total_services,
             duration_seconds=result.timing.total_seconds,
         )
-
-        # Leaderboard submission
-        try:
-            from composearr.leaderboard import Leaderboard
-            Leaderboard().submit_score(score)
-        except Exception:
-            pass
-
-        # Tier warnings
-        try:
-            from composearr.warnings import show_tier_warning
-            show_tier_warning(console, result.total_services)
-        except Exception:
-            pass
     except Exception:
         pass  # History saving should never break the audit
 
@@ -778,8 +751,8 @@ def orphanage(
 ) -> None:
     """Find orphaned Docker resources (volumes, networks) not in compose files.
 
-    The Orphanage identifies Docker resources that exist but aren't referenced
-    in any compose file. ComposeArr NEVER auto-deletes — you decide what to keep.
+    Identifies Docker resources that exist but aren't referenced
+    in any compose file. ComposeArr never auto-deletes — you decide what to keep.
     """
     if path is None:
         from composearr.scanner.discovery import detect_stack_directory
@@ -904,8 +877,8 @@ def init(
 ) -> None:
     """Generate a compose file from a best-practice template.
 
-    Creates a production-ready compose file for common self-hosted apps.
-    Everything ComposeArr checks for — baked in from the start!
+    Creates a production-ready compose file for common self-hosted apps
+    with all ComposeArr best practices applied.
 
     Examples:
         composearr init sonarr
@@ -1143,12 +1116,3 @@ def help_cmd(
     raise typer.Exit()
 
 
-@app.command(hidden=True)
-def whale() -> None:
-    """You found the Easter egg!"""
-    console.print()
-    console.print(WHALE_ART)
-    console.print()
-    console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
-    console.print(f"  [{C_MUTED}]Caring aggressively about your YAMLs since 2026[/] \U0001f433")
-    console.print()

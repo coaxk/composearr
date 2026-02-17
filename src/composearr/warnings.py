@@ -1,48 +1,51 @@
-"""Warnings for special stack conditions."""
+"""Warnings for stack tier progression."""
 
 from __future__ import annotations
 
 from rich.console import Console
 from rich.panel import Panel
 
-from composearr.scoring import StackTier, TIER_CONFIG
+from composearr.scoring import TIER_CONFIG, StackTier, get_stack_tier
 
 
 def show_tier_warning(console: Console, service_count: int) -> None:
-    """Show warning when approaching or at TITAN tier."""
-    services_to_titan = 201 - service_count
+    """Show informational message when approaching or reaching a new tier."""
+    tier = get_stack_tier(service_count)
+    tier_cfg = TIER_CONFIG[tier]
 
-    if 0 < services_to_titan <= 10:
+    # Check if approaching next tier
+    tiers = list(StackTier)
+    current_idx = tiers.index(tier)
+
+    if current_idx < len(tiers) - 1:
+        next_tier = tiers[current_idx + 1]
+        next_cfg = TIER_CONFIG[next_tier]
+        next_min = next_cfg["range"][0]
+        remaining = next_min - service_count
+
+        if 0 < remaining <= 10:
+            console.print()
+            console.print(Panel(
+                f"[cyan]Approaching next tier[/]\n\n"
+                f"Current: {service_count} services ({tier_cfg['emoji']} {tier.value})\n"
+                f"Next: {next_min} services ({next_cfg['emoji']} {next_tier.value})\n"
+                f"Services remaining: [bold]{remaining}[/]\n\n"
+                f"[dim]Weighted score multiplier will increase "
+                f"from \u00d7{tier_cfg['multiplier']} to \u00d7{next_cfg['multiplier']}[/]",
+                border_style="cyan",
+                title="\U0001f4ca Stack Growth",
+            ))
+            console.print()
+
+    elif tier == StackTier.INFRASTRUCTURE:
         console.print()
         console.print(Panel(
-            f"[bold yellow]APPROACHING TITAN TIER[/]\n\n"
-            f"Current: {service_count} services (DATACENTER)\n"
-            f"Next: 201 services (TITAN)\n"
-            f"Services remaining: [bold]{services_to_titan}[/]\n\n"
-            f"[dim]The pinnacle awaits...[/]\n\n"
-            f"Reaching TITAN tier means you're running:\n"
-            f"  - More services than most small companies\n"
-            f"  - Infrastructure that rivals production deployments\n"
-            f"  - A stack that demands serious configuration hygiene\n"
-            f"  - The kind of setup that earns respect on r/homelab\n\n"
-            f"[bold]Almost there.[/]",
-            border_style="yellow",
-            title="WARNING",
-        ))
-        console.print()
-
-    elif service_count >= 201:
-        console.print()
-        console.print(Panel(
-            f"[bold bright_magenta]TITAN TIER ACHIEVED[/]\n\n"
-            f"You've reached the pinnacle of stack management.\n\n"
-            f"  Services: {service_count}\n"
-            f"  Status: Elite\n\n"
-            f"  Few run infrastructure at this scale.\n"
-            f"  Fewer still keep it healthy.\n\n"
-            f"[green]Achievement Unlocked: TITAN[/]\n"
-            f"[dim]Your stack hygiene matters more than ever at this scale.[/]",
-            border_style="bright_magenta",
-            title="TITAN",
+            f"[bold cyan]INFRASTRUCTURE tier[/]\n\n"
+            f"Services: {service_count}\n"
+            f"Multiplier: \u00d7{tier_cfg['multiplier']}\n\n"
+            f"[dim]Stack hygiene is critical at this scale.\n"
+            f"Consider running audits regularly.[/]",
+            border_style="cyan",
+            title="\U0001f4ca Stack Growth",
         ))
         console.print()

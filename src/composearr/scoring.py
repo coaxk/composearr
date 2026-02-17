@@ -30,14 +30,14 @@ def _categorize(rule_id: str) -> str:
 
 
 class StackTier(Enum):
-    """Stack complexity tiers — power levels ascending."""
-    STARTER = "STARTER"           # 1-5 services
-    HOMELAB = "HOMELAB"           # 6-15 services
-    ENTHUSIAST = "ENTHUSIAST"     # 16-30 services
-    POWER_USER = "POWER_USER"     # 31-60 services
-    ENTERPRISE = "ENTERPRISE"     # 61-100 services
-    DATACENTER = "DATACENTER"     # 101-200 services
-    TITAN = "TITAN"  # 201+ services
+    """Stack complexity tiers by service count."""
+    STARTER = "STARTER"                   # 1-5 services
+    HOMELAB = "HOMELAB"                   # 6-15 services
+    ENTHUSIAST = "ENTHUSIAST"             # 16-30 services
+    PROFESSIONAL = "PROFESSIONAL"         # 31-60 services
+    ENTERPRISE = "ENTERPRISE"             # 61-100 services
+    DATACENTER = "DATACENTER"             # 101-200 services
+    INFRASTRUCTURE = "INFRASTRUCTURE"     # 201+ services
 
 
 TIER_CONFIG = {
@@ -45,50 +45,43 @@ TIER_CONFIG = {
         "range": (1, 5),
         "emoji": "\U0001f331",
         "multiplier": 1.0,
-        "description": "Learning the ropes",
-        "power_level": "Krillin",
+        "description": "Small infrastructure (1-5 services)",
     },
     StackTier.HOMELAB: {
         "range": (6, 15),
         "emoji": "\U0001f3e0",
         "multiplier": 1.1,
-        "description": "Typical homelab",
-        "power_level": "Yamcha",
+        "description": "Typical homelab (6-15 services)",
     },
     StackTier.ENTHUSIAST: {
         "range": (16, 30),
         "emoji": "\u26a1",
         "multiplier": 1.3,
-        "description": "Serious homelabber",
-        "power_level": "Piccolo",
+        "description": "Serious infrastructure (16-30 services)",
     },
-    StackTier.POWER_USER: {
+    StackTier.PROFESSIONAL: {
         "range": (31, 60),
-        "emoji": "\U0001f4aa",
+        "emoji": "\U0001f4bc",
         "multiplier": 1.5,
-        "description": "Advanced infrastructure",
-        "power_level": "Vegeta",
+        "description": "Professional-grade infrastructure (31-60 services)",
     },
     StackTier.ENTERPRISE: {
         "range": (61, 100),
         "emoji": "\U0001f3e2",
         "multiplier": 1.7,
-        "description": "Production-grade",
-        "power_level": "Goku",
+        "description": "Production-grade (61-100 services)",
     },
     StackTier.DATACENTER: {
         "range": (101, 200),
         "emoji": "\U0001f3ed",
         "multiplier": 2.0,
-        "description": "Absolute madlad territory",
-        "power_level": "Super Saiyan",
+        "description": "Large-scale infrastructure (101-200 services)",
     },
-    StackTier.TITAN: {
+    StackTier.INFRASTRUCTURE: {
         "range": (201, float("inf")),
         "emoji": "\u26a1",
         "multiplier": 3.0,
-        "description": "Elite infrastructure \u2014 top tier",
-        "power_level": "Exceptional",
+        "description": "Large-scale infrastructure (201+ services)",
     },
 }
 
@@ -99,7 +92,7 @@ def get_stack_tier(service_count: int) -> StackTier:
         min_svc, max_svc = config["range"]
         if min_svc <= service_count <= max_svc:
             return tier
-    return StackTier.TITAN
+    return StackTier.INFRASTRUCTURE
 
 
 @dataclass
@@ -142,8 +135,8 @@ class StackScore:
     def get_display_grade(self) -> str:
         """Get display grade with tier emoji."""
         emoji = TIER_CONFIG[self.tier]["emoji"]
-        if self.tier == StackTier.TITAN and self.is_legendary():
-            return f"{emoji} TITAN LEGENDARY"
+        if self.tier == StackTier.INFRASTRUCTURE and self.is_legendary():
+            return f"{emoji} INFRASTRUCTURE LEGENDARY"
         if self.is_legendary():
             return f"{emoji} LEGENDARY"
         return f"{emoji} {self.grade}"

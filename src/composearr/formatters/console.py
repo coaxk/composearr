@@ -245,7 +245,6 @@ class ConsoleFormatter:
         """Display the stack health score with tier, weighted score, and trend."""
         from composearr.scoring import (
             TIER_CONFIG,
-            StackTier,
             calculate_stack_score,
         )
 
@@ -272,34 +271,16 @@ class ConsoleFormatter:
         tier_cfg = TIER_CONFIG[score.tier]
         tier_emoji = tier_cfg["emoji"]
         tier_desc = tier_cfg["description"]
-        power_level = tier_cfg["power_level"]
 
-        # TITAN special display
-        if score.tier == StackTier.TITAN:
-            if score.is_legendary():
-                self.console.print(f"  [bold bright_magenta]{tier_emoji} TITAN LEGENDARY {tier_emoji}[/]")
-            else:
-                self.console.print(f"  [bold bright_magenta]{tier_emoji} {score.grade} - TITAN[/]  {_muted(f'{score.overall}/100')}")
-
-            # Scale bar
-            scale_bar = "\u2588" * 20
-            self.console.print(f"  [bold bright_magenta]Scale:[/]")
-            self.console.print(
-                f"  {tier_emoji} TITAN [{scale_bar}] "
-                f"{score.total_services}/{score.total_services}"
-            )
-            status_text = "LEGENDARY" if score.is_legendary() else "ACTIVE"
-            self.console.print(f"  {_muted(f'Status: {status_text}')}")
-            self.console.print(f"  {_muted('Scale: Elite')}")
-        elif score.is_legendary():
-            self.console.print(f"  [bold {C_OK}]{score.get_display_grade()}[/]  {_muted(f'{score.overall}/100')}")
+        # Score display — consistent for all tiers
+        if score.is_legendary():
+            self.console.print(f"  [bold {C_OK}]\U0001f3c6 LEGENDARY ({score.grade})[/]  {_muted(f'{score.overall}/100')}")
         else:
             self.console.print(f"  [bold {grade_color}]Stack Health Score: {score.get_display_grade()}[/]  {_muted(f'{score.overall}/100')}")
 
         # Tier and weighted score
         self.console.print(
             f"  {_muted('Tier:')} {tier_emoji} {score.tier.value} {_muted(f'- {tier_desc}')}"
-            f"  {_muted(f'Power Level: {power_level}')}"
         )
         self.console.print(
             f"  {_muted('Base:')} {score.overall}/100  "

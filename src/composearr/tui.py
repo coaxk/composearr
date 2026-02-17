@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.resources
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -38,129 +37,8 @@ C_DIM = "#52525b"
 _BACK = "__back__"
 _EXIT = "__exit__"
 
-# ── ASCII Art ──────────────────────────────────────────────────
-
-# Plain-text fallback for terminals without true-color support
-_ROLL_SAFE_FALLBACK = (
-    f"[{C_MUTED}]"
-    "\n                         :                ~~;::=~;,~=;,;=:,,,=%#%@@%%##**"
-    "\n                         :.               ~~;::=~;,-=-:;=:,,,~~~=+=+++++="
-    "\n                         ,.               -~;:,=~;,-=-;:=;,,,~~==~~=+++++"
-    "\n ,.           .:;;;:,.   ,.               -~-;,~=-,;=-::=;,,,-=~=~~=+++++"
-    "\n :,         :~++**####+; ,,               ;=-;,~=-:;=~;:=-,,,-~~==~=++++%"
-    "\n   ,   ,. :~+*#*##%%%%@@+,,            .. ;=-;,-=-:;=~;:=-,:,-=~==++++**%"
-    "\n   ;. =%+~+*#%%%@@@@@@@@@+.          .... :=-;,-=-::=~;:~~::,-~-=%@*++**%"
-    "\n -:+=+%+=*%%%@@@@@@@@@@@@@- .   . ....... :=-;:-=~;:=~;:~~::,-=~~@@###%#%"
-    "\n ##*#%*++%@%@@*+====;;~====...............,=~-:-=~;:=~-:~=::,;=~~%@%%####"
-    "\n ***%***#%%@@;         ;~~~, .............,=~-:;=~;:~=-:-=;::;=~~%@@++===" "="
-    "\n +#%#**#%@@@-          ,--~-..............,=~-:;=~;:~=-:-=;::;=~~#@@+=+**"
-    "\n -+#*#**==~;.         .,;-~+: ............,~~-;;=~-:~=-:;=;::;=~-#@@###%%"
-    "\n :-#*##*#=~=;,  .     .,:-~+=............,,~~-;;=~-:-=~;;=-;::=~-#@@#@#%#"
-    "\n ==***#@@@%+~;,::,.....,:--~=,...........,.~=-;:==-:-=~;;=-:::=~-*@@#@#@#"
-    "\n ;=**#%%@#+=~,:-;:,.   ,;---+#..........,,.~=-;;==-;-=~;;=-;::~~-*@@#@#@#"
-    "\n ~~#**%@%++;  +-,    .,;-~=#@%.......,,,,,.-=~;;==~;-=~-;=~;;:~==#@@@@@@@"
-    "\n =-*#**%++- ,+%-..-+#%@%#*%@%*,....,,,,,,,.-=~-;==~;-=~-;=~;;:~==#@@@@@@@"
-    "\n =,+**#=;; .~+*-;~+#%@@@@=#@++..,.,,,,,,,,.;=~-;~=~;-==-;==;;;~==#@@@@@@@"
-    "\n #;+###*~ :~-;~~+#@@%~@%= ,#@#:.,,,,,,,,,,.;+~-;~=~--==-;==;;;-=~+@@@@@@@"
-    "\n %@#*##=. :::;;~==~==*#;.  ;+=-.,,,,,,,,,,,;+~-;~+~--==~;==;;;-=;-@@@@@@@"
-    "\n **###%*. ;::;.--::~++,..   :=+.,,,,,,,,,,,;+~-;~+=-;==~;~+-;;-=-~@@@@@@@"
-    "\n ==**###, ~;;, ,;=.   :-    :#*.,,,,,,,,,,,:==~;-+=--=+~-~+-;;-=~~%@@@@@@"
-    "\n ;~***##: :,,..,;=-::~+=~~+*%@=.,,,,,,,,,,,:==~;-+=~;=+~-~+--;-=~~%@@@@@@"
-    "\n ==*##%#.  .. ,:,.,+#@*~@@@@@@-.,,,,,,,,,,,:==~-;+=~-=+=-~+~---=-~@@@@@@@"
-    "\n ;~#*#%%,.:.    .-:,=@##@%+*%*,,,,,,,,,,,,,,==~--+=~-=+=-~+~---=-=@#%@@@@"
-    "\n ::~++#@:.::.,..,-:~*@@@+=+*=;,,,,,,,,,,,,::==~--++~-=+=~~+=---=*%@%@@@@@"
-    "\n +=*%%@@, ,,.. ,-;,+*@%#+;:;~:,,,,,,,,,,::::~=~-;++=-=+=~-+=---=%%~+@@@@@"
-    "\n %%%##@- .,,.  ,--;=*@@@@%#@#,,,,,,,,,,,::::~==~;++=-~+=~-+=---=@**~%@@@@"
-    "\n ==~~++ .,,....,;;~+@@@@@@@@=.,,:::,,,:,:::,~+~~;++=-~*=~~++---=%@+=+=*+~"
-    "\n +**#+  .,,.,,,:,;-#@@@@@@@@+:,,,,:::::,:::,-+~~-++=~~*+=~++~--=%#+%%%###"
-    "\n @@@*;.  ,,,..,:,:-#@@@@@@@@@#+~-;:,::::::::-+=~-=+=~~*+=~++~--~#+~+%%@@@"
-    "\n @@-;,:  ,,,,,::,:~%@@@@@@@@@%##***~:,::::::-+=~-=*+~~*+=~+*~--~**###++*%"
-    "\n %: *~-.  ,,:,,,:;=@@@@@@@@@@@#+++##*=;:::::;+==--*+=~*+=~=*~~~~*#**%###@"
-    "\n ,.::~=:..,,,..,:-+@@@@@@@@@@@%*=+++##*=;:::;+==-~*+=~*+=~=*~~~~*%*#@%+=#"
-    "\n ::~:~=:,..,.  .;-*@@@@@%#%@%@@#====*###*-:::++=~~*+=~++=~=*=~~~*@%%@@#%@"
-    "\n[/]"
-)
 
 
-def _load_ansi_art(console: Console) -> Text | str:
-    """Load true-color ANSI art if terminal supports it, otherwise fallback."""
-    color_system = console.color_system
-    if color_system != "truecolor":
-        return _ROLL_SAFE_FALLBACK
-
-    try:
-        ref = importlib.resources.files("composearr") / "assets" / "rollsafe.ansi"
-        raw = ref.read_text(encoding="utf-8")
-        return Text.from_ansi(raw)
-    except Exception:
-        return _ROLL_SAFE_FALLBACK
-
-# Plain-text fallback whale for terminals without true-color support
-_WHALE_FALLBACK = (
-    f"[{C_INFO}]"
-    "\n                    ##         ."
-    "\n              ## ## ##        =="
-    "\n           ## ## ## ## ##    ==="
-    '\n       /"""""""""""""""""\\___/ ==='
-    "\n      {                       /  ===-"
-    "\n       \\______ O           __/"
-    "\n         \\    \\         __/"
-    "\n          \\____\\_______/"
-    "\n[/]"
-)
-
-
-def _load_whale_art(console: Console) -> Text | str:
-    """Load true-color whale ANSI art if available, otherwise fallback."""
-    color_system = console.color_system
-    if color_system != "truecolor":
-        return _WHALE_FALLBACK
-
-    try:
-        ref = importlib.resources.files("composearr") / "assets" / "whale.ansi"
-        raw = ref.read_text(encoding="utf-8")
-        return Text.from_ansi(raw)
-    except Exception:
-        return _WHALE_FALLBACK
-
-
-def _render_figlet_title(console: Console) -> str | None:
-    """Render ComposeArr version banner in Big Money-nw FIGlet font.
-
-    Returns Rich markup string, or None if terminal is too narrow.
-    """
-    try:
-        import pyfiglet
-    except ImportError:
-        return None
-
-    term_width = console.width or 80
-    title_text = f"ComposeArr v{__version__}"
-
-    # Generate with wide width, check if it fits
-    art = pyfiglet.figlet_format(title_text, font="big_money-nw", width=300)
-    lines = [l.rstrip() for l in art.split("\n")]
-    while lines and not lines[-1]:
-        lines.pop()
-
-    max_width = max((len(l) for l in lines), default=0)
-
-    if max_width > term_width:
-        # Try just "ComposeArr" if full title is too wide
-        art = pyfiglet.figlet_format("ComposeArr", font="big_money-nw", width=300)
-        lines = [l.rstrip() for l in art.split("\n")]
-        while lines and not lines[-1]:
-            lines.pop()
-        max_width = max((len(l) for l in lines), default=0)
-
-        if max_width > term_width:
-            return None  # Terminal too narrow for any FIGlet
-
-        # Append version below in plain text
-        lines.append(f"  v{__version__}")
-
-    joined = "\n".join(lines)
-    return f"[{C_TEAL}]{joined}[/]"
 
 
 # ── Navigation Helpers ─────────────────────────────────────────
@@ -700,30 +578,11 @@ def launch_tui() -> None:
     console = make_console()
     session: dict = {}
 
-    # Welcome screen with art (true-color ANSI if supported, ASCII fallback)
-    art = _load_ansi_art(console)
+    # Clean professional header
     console.print()
-    console.print(art)
-    console.print()
-
-    # Big Money-nw FIGlet title (adapts to terminal width)
-    title_art = _render_figlet_title(console)
-    if title_art:
-        console.print(title_art)
-    else:
-        console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
-    console.print(f"  [{C_MUTED}]Caring aggressively about your YAMLs since 2026[/]")
-    console.print()
-
-    # Intro text — explain what the app does
-    console.print(f"  [{C_TEXT}]ComposeArr scans your Docker Compose stacks for common issues:[/]")
-    console.print(f"    [{C_MUTED}]\u2022 Configuration problems (missing restart policies, fake healthchecks)[/]")
-    console.print(f"    [{C_MUTED}]\u2022 Security risks (hardcoded secrets, unpinned :latest tags)[/]")
-    console.print(f"    [{C_MUTED}]\u2022 Consistency issues (mismatched PUID/PGID, missing timezones)[/]")
-    console.print(f"    [{C_MUTED}]\u2022 Network problems (port conflicts, unreachable dependencies)[/]")
-    console.print()
-    console.print(f"  [{C_MUTED}]Perfect for homelab enthusiasts running *arr stacks, media servers,[/]")
-    console.print(f"  [{C_MUTED}]and self-hosted applications.[/]")
+    console.print(f"  [bold {C_TEAL}]ComposeArr[/] [{C_MUTED}]v{__version__}[/]")
+    console.print(f"  [{C_MUTED}]Grammarly for Docker Compose[/]")
+    console.print(f"  [{C_MUTED}]Catch configuration mistakes before they cause incidents.[/]")
     console.print()
 
     # ── First Launch Detection ────────────────────────────────
@@ -731,13 +590,6 @@ def launch_tui() -> None:
 
     # ── Config Verification on Startup ────────────────────────
     _verify_config_on_startup(console)
-
-    # Load config for gamification toggle
-    try:
-        from composearr.config import load_config
-        _tui_config_obj = load_config(Path(session.get("path", ".")) if session.get("path") else None)
-    except Exception:
-        _tui_config_obj = None
 
     while True:
         console.print(f"  [{C_MUTED}]Scan Stack      \u2014 Quick or custom audit with options[/]")
@@ -763,30 +615,9 @@ def launch_tui() -> None:
         ).execute()
 
         if action == _EXIT:
-            # Show closing credits if gamification is enabled
-            gamification_on = getattr(_tui_config_obj, "gamification", True) if _tui_config_obj else True
-            if gamification_on:
-                try:
-                    from composearr.credits import show_closing_credits
-                    show_closing_credits(console)
-                except Exception:
-                    pass
-
-            whale = _load_whale_art(console)
             console.print()
-            console.print(whale)
+            console.print(f"  [{C_MUTED}]Thanks for using ComposeArr![/]")
             console.print()
-
-            # Alternate exit taglines
-            import random
-            taglines = [
-                "Remember: ComposeArr cares aggressively about your YAMLs. Even when you don\u2019t.",
-                "Do you even YAML?",
-                "Caring aggressively about your YAMLs since 2026.",
-                "Your containers called. They want better compose files.",
-                "May your healthchecks always pass and your ports never conflict.",
-            ]
-            console.print(f"  [{C_MUTED}]{random.choice(taglines)}[/]\n")
             break
         elif action == "scan":
             _tui_scan_stack(console, session)
@@ -1031,9 +862,9 @@ def _tui_watch(console: Console, session: dict) -> None:
 
 def _tui_orphanage(console: Console, session: dict) -> None:
     """Find orphaned Docker volumes and networks."""
-    _section_header(console, "The Orphanage", "Find Docker resources not referenced in compose files")
+    _section_header(console, "Orphaned Resources", "Find Docker resources not referenced in compose files")
 
-    console.print(f"  [{C_TEXT}]The Orphanage compares your Docker volumes and networks against[/]")
+    console.print(f"  [{C_TEXT}]Compares your Docker volumes and networks against[/]")
     console.print(f"  [{C_TEXT}]what's defined in your compose files — anything not referenced is an orphan.[/]")
     console.print()
     console.print(f"  [{C_MUTED}]Requires: Docker SDK (pip install composearr[docker]) + running Docker daemon[/]")
@@ -1391,7 +1222,7 @@ def _tui_freshness(console: Console, session: dict) -> None:
 
 
 def _save_audit_history(result, root: Path, console: Console | None = None) -> None:
-    """Save audit results to history, submit to leaderboard, show tier warnings."""
+    """Save audit results to history."""
     try:
         from composearr.history import AuditHistory
         from composearr.scoring import calculate_stack_score
@@ -1409,25 +1240,6 @@ def _save_audit_history(result, root: Path, console: Console | None = None) -> N
             services_scanned=result.total_services,
             duration_seconds=result.timing.total_seconds,
         )
-
-        # Gamification features (leaderboard + tier warnings) — check config
-        from composearr.config import load_config as _load_cfg
-        _cfg = _load_cfg(root)
-        if _cfg.gamification:
-            # Submit to leaderboard if eligible
-            try:
-                from composearr.leaderboard import Leaderboard
-                Leaderboard().submit_score(score)
-            except Exception:
-                pass
-
-            # Show tier warnings if console available
-            if console is not None:
-                try:
-                    from composearr.warnings import show_tier_warning
-                    show_tier_warning(console, result.total_services)
-                except Exception:
-                    pass
     except Exception:
         pass
 

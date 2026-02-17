@@ -24,7 +24,7 @@ class LeaderboardEntry:
 class Leaderboard:
     """Manages the local leaderboard (~/.composearr/leaderboard.json)."""
 
-    ELIGIBLE_TIERS = {"ENTERPRISE", "DATACENTER", "TITAN"}
+    ELIGIBLE_TIERS = {"ENTERPRISE", "DATACENTER", "INFRASTRUCTURE"}
 
     def __init__(self, path: Path | None = None) -> None:
         self.leaderboard_file = path or (Path.home() / ".composearr" / "leaderboard.json")
@@ -79,10 +79,13 @@ class Leaderboard:
         legendaries.sort(key=lambda x: x.get("weighted_score", 0), reverse=True)
         return legendaries[:limit]
 
-    def get_titans(self) -> list[dict]:
-        """Get all TITAN entries."""
+    def get_infrastructure(self) -> list[dict]:
+        """Get all INFRASTRUCTURE tier entries."""
         entries = self._load()
-        return [e for e in entries if e.get("tier") == "TITAN"]
+        return [e for e in entries if e.get("tier") == "INFRASTRUCTURE"]
+
+    # Backward compat alias
+    get_titans = get_infrastructure
 
     def get_all(self) -> list[dict]:
         """Get all entries sorted by weighted score."""
@@ -109,8 +112,10 @@ class Leaderboard:
                     return []
                 # Migrate old tier names
                 for entry in data:
-                    if entry.get("tier") == "MECHA_NECKBEARD":
-                        entry["tier"] = "TITAN"
+                    if entry.get("tier") in ("MECHA_NECKBEARD", "TITAN"):
+                        entry["tier"] = "INFRASTRUCTURE"
+                    if entry.get("tier") == "POWER_USER":
+                        entry["tier"] = "PROFESSIONAL"
                 return data
         except (json.JSONDecodeError, OSError):
             return []
