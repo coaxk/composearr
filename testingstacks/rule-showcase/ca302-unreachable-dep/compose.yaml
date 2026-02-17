@@ -1,0 +1,24 @@
+services:
+  web:
+    image: nginx:1.27-alpine
+    container_name: web-isolated
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+    networks:
+      - frontend
+    depends_on:
+      - api
+
+  api:
+    image: nginx:1.27-alpine
+    container_name: api-isolated
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+    networks:
+      - backend
+
+networks:
+  frontend:
+  backend:

@@ -1,0 +1,15 @@
+services:
+  mismatched:
+    image: nginx:1.27-alpine
+    container_name: mismatched
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 512M
+          cpus: "1.0"

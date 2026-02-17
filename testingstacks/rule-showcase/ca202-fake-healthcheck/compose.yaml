@@ -1,0 +1,12 @@
+services:
+  fake-healthy:
+    image: nginx:1.27-alpine
+    container_name: fake-healthy
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+    healthcheck:
+      test: ["CMD-SHELL", "exit 0"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,0 +1,7 @@
+services:
+  sketchy-app:
+    image: randomuser/totally-safe-image:1.0
+    container_name: sketchy-app
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York

@@ -1,0 +1,10 @@
+services:
+  isolated-app:
+    image: nginx:1.27-alpine
+    container_name: isolated-app
+    restart: unless-stopped
+    network_mode: "none"
+    ports:
+      - "9999:80"
+    environment:
+      TZ: America/New_York

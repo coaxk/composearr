@@ -1,0 +1,7 @@
+services:
+  restart-loop:
+    image: nginx:1.27-alpine
+    container_name: restart-loop
+    restart: always
+    environment:
+      TZ: America/New_York

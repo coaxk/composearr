@@ -1,0 +1,11 @@
+services:
+  cpu-hog:
+    image: nginx:1.27-alpine
+    container_name: cpu-hog
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+    deploy:
+      resources:
+        limits:
+          memory: 512M

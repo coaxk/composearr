@@ -1,0 +1,12 @@
+services:
+  unrealistic:
+    image: nginx:1.27-alpine
+    container_name: unrealistic
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.01"

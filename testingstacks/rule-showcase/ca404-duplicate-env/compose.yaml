@@ -1,0 +1,9 @@
+services:
+  app:
+    image: nginx:1.27-alpine
+    container_name: dup-env-app
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+      LOG_LEVEL: info
+      LOG_LEVEL: debug

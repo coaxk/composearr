@@ -1,0 +1,9 @@
+services:
+  privileged-container:
+    image: alpine:3.19
+    container_name: privileged
+    privileged: true
+    restart: unless-stopped
+    command: sleep infinity
+    environment:
+      TZ: America/New_York

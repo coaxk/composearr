@@ -1,0 +1,7 @@
+services:
+  no-logging:
+    image: nginx:1.27-alpine
+    container_name: no-logging
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
