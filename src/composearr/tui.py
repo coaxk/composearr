@@ -128,6 +128,11 @@ def _pause(console: Console, message: str = "Press Enter to continue...") -> Non
 # ── Path Resolution (session-aware) ───────────────────────────
 
 
+def _clean_path(path: str) -> str:
+    """Clean up path display — remove trailing spaces and dots."""
+    return path.rstrip(" .")
+
+
 def _resolve_path(console: Console, session: dict) -> str | None:
     """Resolve stack path — silently reuses session path if available.
 
@@ -139,7 +144,7 @@ def _resolve_path(console: Console, session: dict) -> str | None:
 
     if remembered:
         # Silently reuse — the path is shown in settings dashboard / confirmed elsewhere
-        console.print(f"  [{C_MUTED}]Using:[/] [{C_TEAL}]{remembered}[/]")
+        console.print(f"  [{C_MUTED}]Using:[/] [{C_TEAL}]{_clean_path(remembered)}[/]")
         return remembered
 
     # First time — need to find the stacks
@@ -1268,9 +1273,9 @@ def _tui_quick_audit(console: Console, session: dict) -> None:
     _save_audit_history(result, root, console)
 
     fmt_opts = FormatOptions(
-        min_severity=Severity.ERROR,
+        min_severity=Severity.INFO,
         verbose=False,
-        group_by="rule",
+        group_by="severity",
         tui_mode=True,
     )
 
@@ -1410,7 +1415,7 @@ def _tui_custom_audit(console: Console, session: dict) -> None:
     while True:
         console.print()
         # Show current settings
-        path_display = settings["path"]
+        path_display = _clean_path(settings["path"])
         if len(path_display) > 50:
             path_display = "..." + path_display[-47:]
 
@@ -1693,6 +1698,81 @@ def _explain_fix_logic(console: Console, rule_ids: set[str]) -> None:
         console.print()
 
 
+# ── Fix Summary ────────────────────────────────────────────────
+
+
+def _show_fix_summary(
+    console: Console,
+    fix_result,
+    root: Path,
+    *,
+    skipped_files: list[str] | None = None,
+) -> None:
+    """Show a clean, non-duplicated summary after fix process completes."""
+    from rich.panel import Panel
+
+    stack_display = str(root).rstrip(" .")
+
+    summary_parts = []
+    summary_parts.append(f"[bold]Stack:[/] [cyan]{stack_display}[/]\n")
+
+    # Files modified (from verified_files — deduplicated source of truth)
+    if fix_result.verified_files:
+        summary_parts.append(f"[bold]Files Modified:[/] {len(fix_result.verified_files)}")
+        for vf in fix_result.verified_files:
+            try:
+                rel = vf.relative_to(root)
+            except ValueError:
+                rel = vf
+            summary_parts.append(f"  [{C_OK}]\u2713[/] [{C_TEAL}]{rel}[/]  [{C_MUTED}]valid YAML[/]")
+        summary_parts.append("")
+
+    # Verification errors
+    if fix_result.verification_errors:
+        summary_parts.append(f"[bold {C_ERR}]Verification Errors:[/]")
+        for vf, err_msg in fix_result.verification_errors:
+            try:
+                rel = vf.relative_to(root)
+            except ValueError:
+                rel = vf
+            summary_parts.append(f"  [{C_ERR}]\u2716[/] [{C_TEAL}]{rel}[/] [{C_ERR}]{err_msg}[/]")
+            summary_parts.append(f"    [{C_MUTED}]Restore: cp {rel}.bak {rel}[/]")
+        summary_parts.append("")
+
+    # Files skipped
+    if skipped_files:
+        summary_parts.append(f"[bold]Files Skipped:[/] {len(skipped_files)}")
+        for sf in skipped_files:
+            summary_parts.append(f"  [{C_WARN}]\u2298[/] [{C_MUTED}]{sf}[/]")
+        summary_parts.append("")
+
+    # Counts
+    count_line = []
+    if fix_result.applied:
+        count_line.append(f"[{C_OK}]{fix_result.applied} applied[/]")
+    if fix_result.skipped:
+        count_line.append(f"[{C_WARN}]{fix_result.skipped} skipped[/]")
+    if fix_result.errors:
+        count_line.append(f"[{C_ERR}]{fix_result.errors} failed[/]")
+    if count_line:
+        summary_parts.append(f"[bold]Fixes:[/] {'  '.join(count_line)}")
+        summary_parts.append("")
+
+    # Backup info
+    if fix_result.backup_paths:
+        summary_parts.append(f"[dim]Backups: .yaml.bak files in same directories[/]")
+        summary_parts.append(f"[dim]To rollback: cp compose.yaml.bak compose.yaml[/]")
+
+    console.print()
+    console.print(Panel(
+        "\n".join(summary_parts),
+        border_style="green",
+        padding=(1, 2),
+        title="Fix Process Complete",
+    ))
+    console.print()
+
+
 # ── Fix Issues ─────────────────────────────────────────────────
 
 
@@ -1720,17 +1800,32 @@ def _tui_fix(console: Console, session: dict) -> None:
         console.print(f"  [{C_MUTED}]All auto-fixable issues are already resolved.[/]")
         return
 
-    console.print(f"  [{C_TEXT}]Found[/] [bold {C_TEAL}]{len(fixable)}[/] [{C_TEXT}]fixable issues[/]")
+    # Group by file for display
+    by_file: dict[str, list] = defaultdict(list)
+    for issue in fixable:
+        by_file[issue.file_path].append(issue)
+    file_count = len(by_file)
+
+    # Fix process intro panel
+    from rich.panel import Panel
+    console.print(Panel(
+        f"[bold cyan]Fix Process[/]\n\n"
+        f"Found [bold]{len(fixable)}[/] auto-fixable issues across [bold]{file_count}[/] file{'s' if file_count != 1 else ''}.\n\n"
+        f"[bold]How this works:[/]\n"
+        f"  1. Review the issues and proposed fixes below\n"
+        f"  2. Choose: Preview diffs, Apply all, or Cancel\n"
+        f"  3. In preview mode, approve or skip each file individually\n"
+        f"  4. Backups are created automatically (.yaml.bak files)\n\n"
+        f"[dim]All changes are reversible — backups are saved in the same directory.[/]",
+        border_style="cyan",
+        padding=(1, 2),
+        title="Fix Issues",
+    ))
     console.print()
 
     # Explain how each fix type decides what to do
     fix_rules = {i.rule_id for i in fixable}
     _explain_fix_logic(console, fix_rules)
-
-    # Group by file for display
-    by_file: dict[str, list] = defaultdict(list)
-    for issue in fixable:
-        by_file[issue.file_path].append(issue)
 
     sev_colors = {
         Severity.ERROR: C_ERR,
@@ -1777,9 +1872,10 @@ def _tui_fix(console: Console, session: dict) -> None:
         return
 
     if action == "preview":
-        # Show diff previews per-file with approve/skip
+        # Show diff previews per-file with approve/skip/cancel
         from composearr.fixer import preview_fixes, apply_fixes
         from composearr.diff import DiffGenerator
+        from rich.panel import Panel
 
         previews = preview_fixes(fixable)
         if not previews:
@@ -1788,14 +1884,27 @@ def _tui_fix(console: Console, session: dict) -> None:
 
         differ = DiffGenerator()
         approved_files: list[str] = []
+        skipped_files: list[str] = []
+        cancelled = False
+        total_files = len(previews)
 
-        for preview in previews:
+        for idx, preview in enumerate(previews, 1):
             try:
                 rel = str(preview.file_path.relative_to(root))
             except ValueError:
                 rel = str(preview.file_path)
 
-            _section_header(console, f"Changes: {rel}", f"{preview.fix_count} fix{'es' if preview.fix_count != 1 else ''}")
+            # Progress header
+            console.print()
+            console.print(Panel(
+                f"[bold]File {idx} of {total_files}[/]\n"
+                f"[cyan]{rel}[/]\n"
+                f"[dim]{preview.fix_count} fix{'es' if preview.fix_count != 1 else ''} in this file[/]",
+                border_style="cyan",
+                padding=(0, 1),
+            ))
+            console.print()
+
             differ.display_diff(console, preview.original, preview.modified, rel)
 
             # Show which rules are being fixed
@@ -1804,20 +1913,29 @@ def _tui_fix(console: Console, session: dict) -> None:
             console.print()
 
             file_action = inquirer.select(
-                message=f"Apply changes to {rel}?",
+                message=f"What would you like to do?",
                 choices=[
-                    Choice(value="approve", name="\u2713 Approve \u2014 apply these changes"),
-                    Choice(value="skip", name="\u2716 Skip \u2014 leave this file unchanged"),
+                    Choice(value="approve", name=f"Apply changes and continue to next file"),
+                    Choice(value="skip", name=f"Skip this file and continue to next"),
+                    Choice(value="cancel", name="Cancel fix process (return to menu)"),
                 ],
                 default="approve",
             ).execute()
 
             if file_action == "approve":
                 approved_files.append(str(preview.file_path))
-                console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]{rel} approved[/]")
+                console.print(f"\n  [{C_OK}]\u2713 Changes approved for {rel}[/]")
+            elif file_action == "skip":
+                skipped_files.append(rel)
+                console.print(f"\n  [{C_WARN}]\u2298 Skipped {rel}[/]")
             else:
-                console.print(f"  [{C_MUTED}]\u2298 {rel} skipped[/]")
-            console.print()
+                cancelled = True
+                console.print(f"\n  [{C_MUTED}]Fix process cancelled[/]")
+                break
+
+        if cancelled and not approved_files:
+            console.print(f"  [{C_MUTED}]No files modified[/]")
+            return
 
         if not approved_files:
             console.print(f"\n  [{C_MUTED}]No files approved \u2014 nothing modified[/]")
@@ -1827,54 +1945,15 @@ def _tui_fix(console: Console, session: dict) -> None:
         approved_set = set(approved_files)
         approved_issues = [i for i in fixable if i.file_path in approved_set]
 
-        console.print(f"  [{C_TEXT}]Applying {len(approved_issues)} fixes to {len(approved_files)} file{'s' if len(approved_files) != 1 else ''}...[/]")
+        console.print(f"\n  [{C_TEXT}]Applying {len(approved_issues)} fixes to {len(approved_files)} file{'s' if len(approved_files) != 1 else ''}...[/]")
         fix_result = apply_fixes(approved_issues, root, backup=True)
     else:
         from composearr.fixer import apply_fixes
         fix_result = apply_fixes(fixable, root, backup=True)
+        skipped_files = []
 
-    console.print()
-    if fix_result.applied:
-        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Applied {fix_result.applied} fixes[/]")
-    if fix_result.skipped:
-        console.print(f"  [{C_WARN}]\u26a0[/] [{C_TEXT}]{fix_result.skipped} fixes skipped (not auto-applicable)[/]")
-    if fix_result.errors:
-        console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]{fix_result.errors} fixes failed[/]")
-
-    # YAML structure verification report
-    if fix_result.verified_files:
-        console.print()
-        n = len(fix_result.verified_files)
-        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]YAML structure verified for {n} modified file{'s' if n != 1 else ''}:[/]")
-        for vf in fix_result.verified_files:
-            try:
-                rel = vf.relative_to(root)
-            except ValueError:
-                rel = vf
-            console.print(f"    [{C_OK}]\u2713[/] [{C_TEAL}]{rel}[/]  [{C_MUTED}]valid YAML, services key present[/]")
-    if fix_result.verification_errors:
-        console.print()
-        for vf, err_msg in fix_result.verification_errors:
-            try:
-                rel = vf.relative_to(root)
-            except ValueError:
-                rel = vf
-            console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]YAML verification failed:[/] [{C_TEAL}]{rel}[/]")
-            console.print(f"    [{C_ERR}]{err_msg}[/]")
-            console.print(f"    [{C_MUTED}]Restore from backup: cp {rel}.bak {rel}[/]")
-
-    if fix_result.backup_paths:
-        console.print()
-        console.print(f"  [{C_OK}]\u2713[/] [{C_TEXT}]Backups created:[/]")
-        for bak in fix_result.backup_paths:
-            try:
-                rel = bak.relative_to(root)
-            except ValueError:
-                rel = bak
-            console.print(f"    [{C_TEAL}]{rel}[/]")
-        console.print()
-        console.print(f"  [{C_MUTED}]To roll back: copy .bak files over the originals[/]")
-        console.print(f"  [{C_MUTED}]  e.g.  cp compose.yaml.bak compose.yaml[/]")
+    # ── Clean final summary (no duplication) ──
+    _show_fix_summary(console, fix_result, root, skipped_files=skipped_files)
 
 
 # ── Secure Secrets ────────────────────────────────────────────
