@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "Automatic Docker container image updater"
+  category: management
+  tags: [management, docker, updates, automation]
+  env_vars:
+    - name: TZ
+      default: "UTC"
+      description: "Timezone for the container"
+    - name: WATCHTOWER_CLEANUP
+      default: "true"
+      description: "Remove old images after updating"
+    - name: WATCHTOWER_SCHEDULE
+      default: "0 0 4 * * *"
+      description: "Cron schedule for update checks (default: 4am daily)"
+  ports: []
+  volumes_info: []
+
+services:
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: watchtower
+    env_file: [.env]
+    environment:
+      - TZ=${TZ:-UTC}
+      - WATCHTOWER_CLEANUP=${WATCHTOWER_CLEANUP:-true}
+      - WATCHTOWER_SCHEDULE=${WATCHTOWER_SCHEDULE:-0 0 4 * * *}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "/watchtower", "--health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

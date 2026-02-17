@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "Lightweight container management UI for Docker environments"
+  category: management
+  tags: [management, docker, containers]
+  env_vars:
+    - name: TZ
+      default: "UTC"
+      description: "Timezone for the container"
+  ports:
+    - host: 9443
+      container: 9443
+      description: "Portainer HTTPS web interface"
+  volumes_info:
+    - name: portainer_data
+      description: "Portainer persistent data and configuration"
+
+services:
+  portainer:
+    image: portainer/portainer-ce:2.21.5
+    container_name: portainer
+    env_file: [.env]
+    environment:
+      - TZ=${TZ:-UTC}
+    ports:
+      - "${PORTAINER_PORT:-9443}:9443"
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "https://localhost:9443/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  portainer_data:

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "Self-hosted monitoring tool for tracking uptime of services"
+  category: monitoring
+  tags: [monitoring, uptime, alerts]
+  env_vars:
+    - name: TZ
+      default: "UTC"
+      description: "Timezone for the container"
+  ports:
+    - host: 3001
+      container: 3001
+      description: "Uptime Kuma web interface"
+  volumes_info:
+    - name: uptime_kuma_data
+      description: "Uptime Kuma configuration and monitoring data"
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.16
+    container_name: uptime-kuma
+    env_file: [.env]
+    environment:
+      - TZ=${TZ:-UTC}
+    ports:
+      - "${UPTIME_KUMA_PORT:-3001}:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  uptime_kuma_data:

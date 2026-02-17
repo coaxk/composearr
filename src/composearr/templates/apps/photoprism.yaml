@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "AI-powered photo management and browsing application"
+  category: media
+  tags: [media, photos, ai, gallery]
+  env_vars:
+    - name: TZ
+      default: "UTC"
+      description: "Timezone for the container"
+    - name: PHOTOPRISM_ADMIN_PASSWORD
+      default: "changeme"
+      description: "Initial admin password for PhotoPrism"
+  ports:
+    - host: 2342
+      container: 2342
+      description: "PhotoPrism web interface"
+  volumes_info:
+    - name: photoprism_storage
+      description: "PhotoPrism cache, database, and sidecar files"
+    - name: photos
+      description: "Photo library originals path"
+
+services:
+  photoprism:
+    image: photoprism/photoprism:240915
+    container_name: photoprism
+    env_file: [.env]
+    environment:
+      - TZ=${TZ:-UTC}
+      - PHOTOPRISM_ADMIN_PASSWORD=${PHOTOPRISM_ADMIN_PASSWORD:-changeme}
+      - PHOTOPRISM_SITE_URL=http://localhost:2342/
+      - PHOTOPRISM_ORIGINALS_LIMIT=5000
+      - PHOTOPRISM_DATABASE_DRIVER=sqlite
+    ports:
+      - "${PHOTOPRISM_PORT:-2342}:2342"
+    volumes:
+      - photoprism_storage:/photoprism/storage
+      - ${PHOTOS_PATH:-/data/photos}:/photoprism/originals
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2342/api/v1/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  photoprism_storage:

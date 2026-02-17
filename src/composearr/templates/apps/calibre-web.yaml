@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../schemas/app-template.json
+_metadata:
+  description: "Web-based e-book library browser and reader"
+  category: media
+  tags: [media, books, ebooks, library]
+  env_vars:
+    - name: PUID
+      default: "1000"
+      description: "User ID for file permissions"
+    - name: PGID
+      default: "1000"
+      description: "Group ID for file permissions"
+    - name: TZ
+      default: "UTC"
+      description: "Timezone for the container"
+  ports:
+    - host: 8083
+      container: 8083
+      description: "Calibre-Web web interface"
+  volumes_info:
+    - name: calibre_config
+      description: "Calibre-Web configuration and database"
+    - name: books
+      description: "Calibre book library path"
+
+services:
+  calibre-web:
+    image: lscr.io/linuxserver/calibre-web:0.6.24
+    container_name: calibre-web
+    env_file: [.env]
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
+    ports:
+      - "${CALIBRE_WEB_PORT:-8083}:8083"
+    volumes:
+      - calibre_config:/config
+      - ${BOOKS_PATH:-/data/books}:/books
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  calibre_config:

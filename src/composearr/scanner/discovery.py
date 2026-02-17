@@ -352,13 +352,24 @@ def detect_all_stack_directories(progress_callback=None) -> list[dict]:
     return candidates
 
 
-def discover_compose_files(root_path: Path) -> tuple[list[Path], dict[str, list[Path]]]:
+def discover_compose_files(
+    root_path: Path,
+    *,
+    max_depth: int | None = None,
+    ignore_parser: object | None = None,
+) -> tuple[list[Path], dict[str, list[Path]]]:
     """Recursively find all compose files under root_path.
+
+    Args:
+        root_path: Directory to scan.
+        max_depth: Maximum directory depth (None = use MAX_SCAN_DEPTH).
+        ignore_parser: Optional IgnoreFileParser for .composearrignore patterns.
 
     Returns (canonical_paths, managed_dict) where managed_dict maps
     platform name -> list of skipped paths managed by that platform.
     """
     root = root_path.resolve()
+    depth_limit = max_depth if max_depth is not None else MAX_SCAN_DEPTH
 
     if not root.is_dir():
         return [], {}
@@ -374,7 +385,7 @@ def discover_compose_files(root_path: Path) -> tuple[list[Path], dict[str, list[
                 continue
 
             # Enforce max scan depth
-            if len(parts) > MAX_SCAN_DEPTH:
+            if len(parts) > depth_limit:
                 continue
 
             # Skip symlinks that point outside the root
@@ -384,6 +395,12 @@ def discover_compose_files(root_path: Path) -> tuple[list[Path], dict[str, list[
                     continue
             except (OSError, RuntimeError):
                 continue
+
+            # Apply .composearrignore patterns
+            if ignore_parser is not None:
+                rel_str = str(rel).replace("\\", "/")
+                if hasattr(ignore_parser, "is_ignored") and ignore_parser.is_ignored(rel_str):
+                    continue
 
             found.append(path)
 

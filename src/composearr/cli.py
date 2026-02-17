@@ -82,6 +82,9 @@ def audit(
     output: str = typer.Option(None, "--output", "-o", help="Output file path (auto-named for non-console formats)"),
     explain: bool = typer.Option(False, "--explain", "-e", help="Show detailed explanations for each triggered rule"),
     no_suppression: bool = typer.Option(False, "--no-suppression", help="Ignore inline suppression comments"),
+    recursive: bool = typer.Option(False, "--recursive", "-R", help="Scan subdirectories recursively"),
+    max_depth: int = typer.Option(None, "--max-depth", help="Maximum directory depth for recursive scan"),
+    profile: str = typer.Option(None, "--profile", "-P", help="Rule profile: strict, balanced, relaxed"),
 ) -> None:
     """Scan Docker Compose files for issues."""
     if path is None:
@@ -109,11 +112,23 @@ def audit(
     from composearr.rules.CA0xx_images import set_network_enabled
     set_network_enabled(not no_network)
 
-    # Configure suppression
+    # Configure suppression and profile
     from composearr.config import load_config
     audit_config = load_config(root)
     if no_suppression:
         audit_config.honor_suppressions = False
+    if recursive:
+        audit_config.recursive = True
+    if max_depth is not None:
+        audit_config.max_depth = max_depth
+    if profile:
+        from composearr.profiles import apply_profile
+        try:
+            audit_config.rules = apply_profile(audit_config.rules, profile)
+            audit_config.profile = profile
+        except ValueError as e:
+            console.print(f"[{C_ERR}]Error:[/] {e}")
+            raise typer.Exit(code=2)
 
     # Run audit with progress (stderr for machine formats so piping works)
     if output_format in ("json", "github", "sarif"):

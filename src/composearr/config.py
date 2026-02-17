@@ -98,6 +98,9 @@ class Config:
     show_achievements: bool = False
     leaderboard_enabled: bool = False
     show_stats_on_exit: bool = False
+    profile: str | None = None
+    recursive: bool = False
+    max_depth: int | None = None
 
     def is_rule_enabled(self, rule_id: str) -> bool:
         return self.rules.get(rule_id, "warning") != "off"
@@ -148,6 +151,21 @@ class Config:
                 self.leaderboard_enabled = bool(lb["enabled"])
             if "show_on_exit" in lb:
                 self.show_stats_on_exit = bool(lb["show_on_exit"])
+
+        # Profile support
+        if "profile" in other and other["profile"]:
+            profile_name = str(other["profile"]).lower()
+            self.profile = profile_name
+            from composearr.profiles import apply_profile
+            self.rules = apply_profile(self.rules, profile_name)
+
+        # Scan settings
+        if "scan" in other and isinstance(other["scan"], dict):
+            scan = other["scan"]
+            if "recursive" in scan:
+                self.recursive = bool(scan["recursive"])
+            if "max_depth" in scan:
+                self.max_depth = int(scan["max_depth"])
 
         if "ignore" in other:
             ignore = other["ignore"]
