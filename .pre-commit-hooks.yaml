@@ -1,8 +1,19 @@
-- id: composearr
-  name: ComposeArr Docker Compose Linter
-  description: Audit Docker Compose files for security, reliability, and best-practice issues.
-  entry: composearr audit --severity error --format console
+- id: composearr-lint
+  name: ComposeArr Lint
+  description: Lint Docker Compose files for configuration issues
+  entry: composearr audit
   language: python
-  types: [yaml]
-  require_serial: true
-  minimum_pre_commit_version: "3.0.0"
+  files: (docker-compose|compose)\.(yaml|yml)$
+  pass_filenames: false
+  args: ['--severity', 'error', '--format', 'console']
+  additional_dependencies: []
+
+- id: composearr-lint-strict
+  name: ComposeArr Lint (Strict)
+  description: Lint with strict profile (production standards)
+  entry: composearr audit
+  language: python
+  files: (docker-compose|compose)\.(yaml|yml)$
+  pass_filenames: false
+  args: ['--severity', 'warning', '--profile', 'strict', '--format', 'console']
+  additional_dependencies: []

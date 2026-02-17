@@ -1,0 +1,45 @@
+name: Test ComposeArr Action
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  test-basic:
+    name: Test Basic Usage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test with defaults
+        uses: ./
+        with:
+          path: 'tests/fixtures/valid'
+          fail-on: 'never'
+
+  test-strict:
+    name: Test Strict Profile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test strict profile
+        uses: ./
+        with:
+          path: 'tests/fixtures/valid'
+          profile: 'strict'
+          fail-on: 'never'
+
+  test-recursive:
+    name: Test Recursive Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test recursive
+        uses: ./
+        with:
+          path: 'tests/fixtures'
+          recursive: true
+          fail-on: 'never'

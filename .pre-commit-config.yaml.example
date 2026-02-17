@@ -1,0 +1,16 @@
+# ComposeArr Pre-commit Configuration
+# Installation: pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/composearr/composearr
+    rev: v0.1.0  # Use latest release
+    hooks:
+      # Standard linting (errors only)
+      - id: composearr-lint
+
+      # Or use strict mode for production
+      # - id: composearr-lint-strict
+
+      # Custom args example:
+      # - id: composearr-lint
+      #   args: ['--severity', 'warning', '--profile', 'balanced']

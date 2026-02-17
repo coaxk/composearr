@@ -1,0 +1,24 @@
+name: Strict Compose Linting
+
+on:
+  pull_request:
+    paths:
+      - 'production/**/*.yaml'
+      - 'production/**/*.yml'
+
+jobs:
+  strict-lint:
+    name: Production Compose Lint (Strict)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint production compose files
+        uses: composearr/composearr@v1
+        with:
+          path: 'production'
+          severity: 'warning'
+          fail-on: 'warning'
+          recursive: true
+          profile: 'strict'

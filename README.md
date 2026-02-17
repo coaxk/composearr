@@ -1,125 +1,200 @@
 # ComposeArr
 
-**Docker Compose hygiene linter with cross-file intelligence.**
+**Grammarly for Docker Compose**
 
-Catch port conflicts, leaked secrets, missing healthchecks, and *arr stack misconfigurations -- before they bite you at 3 AM.
+Catch configuration mistakes before they cause 3am incidents.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-teal)](https://github.com/coaxk/composearr)
+[![Tests](https://github.com/composearr/composearr/actions/workflows/ci.yml/badge.svg)](https://github.com/composearr/composearr/actions)
+[![GitHub Action](https://img.shields.io/badge/GitHub-Action-blue)](https://github.com/composearr/composearr)
+[![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen)](https://github.com/pre-commit/pre-commit)
 [![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](https://github.com/coaxk/composearr/actions)
-
----
-
-## Quick Start
-
-```bash
-pip install composearr
-```
-
-**Run an audit** (CLI mode):
-
-```bash
-composearr audit
-```
-
-**Launch the interactive TUI** (no arguments):
-
-```bash
-composearr
-```
-
-ComposeArr auto-detects your Docker stack directory. Point it somewhere specific with:
-
-```bash
-composearr audit /path/to/stacks
-```
 
 ---
 
 ## Features
 
-### 13 Lint Rules
+- **30 rules** across 9 categories
+- **Auto-fix** with interactive preview
+- **CI/CD Ready** - GitHub Action + pre-commit hook
+- **Stack Health Score** - Track your progress
+- **Rule Profiles** - Strict, balanced, or relaxed
+- **Fast** - Parallel execution, parse caching
+- **Beautiful TUI** - Interactive terminal interface
+- **Educational** - Learn Docker best practices
+- **20 app templates** - Generate best-practice compose files
+- **.composearrignore** - Gitignore-style file exclusions
 
-ComposeArr ships with 13 rules across 5 categories, each with actionable fix suggestions:
+## Quick Start
 
-| ID | Name | Severity | Description |
-|----|------|----------|-------------|
-| CA001 | no-latest-tag | warning | Image uses `:latest` or has no tag |
-| CA003 | untrusted-registry | info | Image pulled from non-default registry |
-| CA101 | no-inline-secrets | error | Secret value hardcoded in environment block |
-| CA201 | require-healthcheck | warning | Service has no healthcheck defined |
-| CA202 | no-fake-healthcheck | warning | Healthcheck always passes (`exit 0`, `true`, etc.) |
-| CA203 | require-restart-policy | warning | No restart policy set |
-| CA301 | port-conflict | error | Same host port used by multiple services (cross-file) |
-| CA302 | unreachable-dependency | error | Service depends_on a service it cannot reach via network |
-| CA303 | isolated-service-ports | warning | Service with `network_mode: none` exposes unreachable ports |
-| CA401 | puid-pgid-mismatch | error | PUID/PGID values differ across services (cross-file) |
-| CA402 | umask-inconsistent | warning | UMASK values differ across *arr services |
-| CA403 | missing-timezone | warning | TZ environment variable not set |
-| CA601 | hardlink-path-mismatch | warning | Arr services don't share a common `/data` root mount (TRaSH Guides) |
-
-### Interactive TUI
-
-Run `composearr` with no arguments to launch a full interactive menu powered by [InquirerPy](https://github.com/kazhala/InquirerPy). Configure audit settings, browse rules, fix issues, and export reports -- all without memorizing CLI flags.
-
-### Auto-Fix Engine
-
-Many rules offer automatic fixes. Review proposed changes, then apply them in one step:
+### CLI
 
 ```bash
-composearr fix                    # Interactive fix with backup files
-composearr fix --dry-run          # Preview without modifying anything
-composearr fix --no-backup        # Apply without creating .bak files
+pip install composearr
+composearr audit
 ```
 
-### Port Allocation Table
+### GitHub Actions
 
-See every port mapping across your entire stack at a glance, with conflict highlighting:
+```yaml
+- uses: composearr/composearr@v1
+```
+
+### Pre-commit
+
+```yaml
+repos:
+  - repo: https://github.com/composearr/composearr
+    rev: v0.1.0
+    hooks:
+      - id: composearr-lint
+```
+
+---
+
+## GitHub Actions Integration
+
+ComposeArr provides an official GitHub Action for CI/CD pipelines.
+
+### Basic Usage
+
+```yaml
+- name: Lint compose files
+  uses: composearr/composearr@v1
+  with:
+    path: '.'
+    severity: 'warning'
+    fail-on: 'error'
+```
+
+### Full Example
+
+```yaml
+name: Lint Compose Files
+
+on:
+  pull_request:
+    paths:
+      - '**.yaml'
+      - '**.yml'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ComposeArr
+        uses: composearr/composearr@v1
+        with:
+          path: '.'
+          recursive: true
+          profile: 'balanced'
+          fail-on: 'error'
+```
+
+### Inputs
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `path` | Path to compose files | `.` |
+| `severity` | Minimum severity (`error`, `warning`, `info`) | `warning` |
+| `fail-on` | Fail build on (`error`, `warning`, `info`, `never`) | `error` |
+| `recursive` | Scan subdirectories | `false` |
+| `profile` | Rule profile (`strict`, `balanced`, `relaxed`) | `balanced` |
+| `format` | Output format | `github` |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `issues-found` | Total issues |
+| `errors` | Error count |
+| `warnings` | Warning count |
+| `score` | Health score (0-100) |
+| `grade` | Letter grade (A+ to F) |
+
+See [.github/workflows/composearr-example.yml](.github/workflows/composearr-example.yml) for complete examples.
+
+---
+
+## Pre-commit Hook
+
+Prevent bad compose files from being committed.
+
+### Quick Start
 
 ```bash
-composearr ports                  # Full table
-composearr ports --conflicts      # Only show conflicting ports
-composearr ports --format json    # Machine-readable output
+# Install pre-commit
+pip install pre-commit
+
+# Add to your repo
+cat > .pre-commit-config.yaml << EOF
+repos:
+  - repo: https://github.com/composearr/composearr
+    rev: v0.1.0
+    hooks:
+      - id: composearr-lint
+EOF
+
+# Install the hook
+pre-commit install
+
+# Now composearr runs before every commit!
 ```
 
-### Explain Mode
+### Profiles
 
-Get detailed documentation for any rule, including why it matters, real-world failure scenarios, and fix examples:
+Choose your strictness level:
+
+```yaml
+hooks:
+  # Errors only (default)
+  - id: composearr-lint
+
+  # Production standards (strict)
+  - id: composearr-lint-strict
+
+  # Custom configuration
+  - id: composearr-lint
+    args: ['--severity', 'warning', '--profile', 'relaxed']
+```
+
+### Skip Hook (when needed)
 
 ```bash
-composearr explain CA001
+# Skip for a single commit
+git commit --no-verify
+
+# Skip for specific files
+SKIP=composearr-lint git commit
 ```
 
-### Config Validation
+See [.pre-commit-config.yaml.example](.pre-commit-config.yaml.example) for full configuration.
 
-Validate your `.composearr.yml` configuration and see the effective merged config:
+---
+
+## 30 Lint Rules
+
+ComposeArr ships with 30 rules across 9 categories, each with actionable fix suggestions:
+
+| Category | Rules | Examples |
+|----------|-------|---------|
+| Images (CA0xx) | 2 | Unpinned tags, untrusted registries |
+| Security (CA1xx) | 1 | Inline secrets |
+| Reliability (CA2xx) | 3 | Healthchecks, restart policies |
+| Networking (CA3xx) | 4 | Port conflicts, unreachable deps |
+| Consistency (CA4xx) | 4 | PUID/PGID, timezone, env vars |
+| Resources (CA5xx) | 5 | Memory/CPU limits, logging |
+| Arr Stack (CA6xx) | 1 | Hardlink path alignment |
+| Volumes (CA7xx) | 2 | Named volumes, undefined refs |
+| Security (CA8xx) | 4 | Capabilities, privileged mode |
+| Advanced (CA9xx) | 4 | Resource requests, tmpfs, namespaces |
 
 ```bash
-composearr config                 # Show effective config
-composearr config --validate      # Validate config files only
+composearr rules              # List all rules
+composearr explain CA001      # Detailed rule documentation
 ```
-
-### Multiple Output Formats
-
-- **Console** -- Rich terminal output with color-coded severity, grouping, and progress bars
-- **JSON** -- Machine-readable audit results
-- **SARIF** -- GitHub Advanced Security compatible format
-- **GitHub** -- GitHub Actions annotation format (`::error`, `::warning`)
-
-```bash
-composearr audit --format json
-composearr audit --format sarif --output report.sarif
-composearr audit --format github
-```
-
-### Privacy-First Telemetry
-
-Telemetry is **opt-in only**. When enabled, it collects only anonymous aggregate data (rule hit counts, scan duration, file counts). It never collects service names, image names, paths, secrets, or anything personally identifiable. You can review all pending events before they are sent.
-
-### 63 Known Service Profiles
-
-ComposeArr recognizes 63 Docker services out of the box -- including the entire *arr stack (Sonarr, Radarr, Prowlarr, etc.), download clients, databases, reverse proxies, and monitoring tools. Known services get smarter healthcheck suggestions, accurate port defaults, and resource recommendations.
 
 ---
 
@@ -131,23 +206,34 @@ ComposeArr recognizes 63 Docker services out of the box -- including the entire 
 | `composearr audit [PATH]` | Scan compose files for issues |
 | `composearr fix [PATH]` | Apply auto-fixes to compose files |
 | `composearr ports [PATH]` | Show port allocation table |
-| `composearr topology [PATH]` | Show network topology and dependency reachability |
+| `composearr topology [PATH]` | Show network topology |
+| `composearr freshness [PATH]` | Check for newer image versions |
+| `composearr runtime [PATH]` | Compare compose vs running containers |
+| `composearr history [PATH]` | View audit history and score trends |
+| `composearr watch [PATH]` | Monitor files and re-audit on changes |
+| `composearr init [TEMPLATE]` | Generate compose from template |
 | `composearr rules` | List all available rules |
 | `composearr explain <RULE>` | Show detailed rule documentation |
 | `composearr config [PATH]` | Validate and show configuration |
-| `composearr whale` | :) |
+| `composearr batch [PATH]` | Batch operations for CI/CD |
+| `composearr help [COMMAND]` | Show command reference |
 
 ### Audit Options
 
 ```
---severity, -s    Minimum severity: error, warning, info (default: error)
---rule, -r        Only run specific rules (comma-separated, e.g. CA001,CA301)
---ignore, -i      Skip specific rules (comma-separated)
---group-by, -g    Group issues by: rule, file, severity (default: rule)
---format, -f      Output format: console, json, sarif, github (default: console)
---output, -o      Output file path
---verbose         Show full file context for each issue
---no-network      Disable network features (tag version lookups)
+--severity, -s      Minimum severity: error, warning, info
+--rule, -r          Only run specific rules (comma-separated)
+--ignore, -i        Skip specific rules (comma-separated)
+--group-by, -g      Group issues by: rule, file, severity
+--format, -f        Output format: console, json, sarif, github
+--output, -o        Output file path
+--verbose           Show full file context
+--no-network        Disable network features
+--no-suppression    Ignore inline suppression comments
+--recursive, -R     Scan subdirectories recursively
+--max-depth         Maximum directory depth for recursive scan
+--profile, -P       Rule profile: strict, balanced, relaxed
+--explain, -e       Show detailed explanations for triggered rules
 ```
 
 ---
@@ -162,11 +248,19 @@ ComposeArr loads configuration from a hierarchy: **defaults -> user -> project**
 ### Example `.composearr.yml`
 
 ```yaml
+# Rule profile (strict, balanced, relaxed)
+profile: balanced
+
+# Scan settings
+scan:
+  recursive: true
+  max_depth: 5
+
 # Override rule severities (error, warning, info, off)
 rules:
-  CA001: error          # Promote no-latest-tag to error
-  CA403: off            # Disable missing-timezone check
-  no-inline-secrets: error  # Rules accept both IDs and names
+  CA001: error
+  CA403: off
+  no-inline-secrets: error
 
 # Ignore files or services
 ignore:
@@ -176,6 +270,18 @@ ignore:
   services:
     - debug-helper
     - dev-tools
+```
+
+### .composearrignore
+
+Exclude files from scanning with gitignore-style patterns:
+
+```
+# .composearrignore
+backup/
+*.bak
+**/test-*.yaml
+!important-test.yaml
 ```
 
 ### Inline Suppression
@@ -189,7 +295,36 @@ services:
   myapp:
     # composearr-ignore: CA001     # Suppress specific rule on next line
     image: myapp:latest
+
+    # composearr: ignore CA201     # Alternate format
+    # No healthcheck needed for this dev service
 ```
+
+---
+
+## Templates
+
+Generate best-practice compose files for 20 popular apps:
+
+```bash
+composearr init --list            # List all templates
+composearr init sonarr            # Generate Sonarr compose
+composearr init nginx -o ~/docker/nginx
+```
+
+Available: Sonarr, Radarr, Prowlarr, qBittorrent, SABnzbd, Plex, Nginx, Postgres, Redis, Traefik, Jellyfin, Heimdall, Portainer, Uptime Kuma, Vaultwarden, Nextcloud, PhotoPrism, Calibre-Web, FreshRSS, Watchtower.
+
+---
+
+## Cross-File Intelligence
+
+Unlike single-file linters, ComposeArr scans your **entire stack directory** and detects issues that span multiple compose files:
+
+- **Port conflicts** (CA301) -- two services in different files binding the same host port
+- **Unreachable dependencies** (CA302) -- service depends_on another it can't reach via network
+- **PUID/PGID mismatches** (CA401) -- inconsistent user IDs across your *arr services
+- **UMASK drift** (CA402) -- mismatched UMASK values breaking hardlinks
+- **Hardlink path issues** (CA601) -- *arr services without a unified `/data` mount
 
 ---
 
@@ -201,7 +336,7 @@ services:
   Scanned 12 files, 28 services in 0.34s
 
   ● 3 errors    ● 8 warnings    ● 2 info
-  4 auto-fixable → composearr audit --fix
+  4 auto-fixable → composearr fix
 
   ━━ CA301 port-conflict (1 issue)
 
@@ -222,24 +357,12 @@ services:
 
 ---
 
-## Cross-File Intelligence
-
-Unlike single-file linters, ComposeArr scans your **entire stack directory** and detects issues that span multiple compose files:
-
-- **Port conflicts** (CA301) -- two services in different files binding the same host port
-- **Unreachable dependencies** (CA302) -- service depends_on another it can't reach via network
-- **PUID/PGID mismatches** (CA401) -- inconsistent user IDs across your *arr services
-- **UMASK drift** (CA402) -- mismatched UMASK values breaking hardlinks
-- **Hardlink path issues** (CA601) -- *arr services without a unified `/data` mount
-
----
-
 ## Contributing
 
 Contributions are welcome. The project uses [Hatch](https://hatch.pypa.io/) as its build system.
 
 ```bash
-git clone https://github.com/coaxk/composearr.git
+git clone https://github.com/composearr/composearr.git
 cd composearr
 pip install -e ".[dev]"
 pytest

@@ -1,0 +1,151 @@
+name: 'ComposeArr Lint'
+description: 'Lint Docker Compose files with ComposeArr - catch config issues before deployment'
+author: 'ComposeArr'
+
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path to compose files or directory (default: current directory)'
+    required: false
+    default: '.'
+
+  severity:
+    description: 'Minimum severity level: error, warning, info (default: warning)'
+    required: false
+    default: 'warning'
+
+  fail-on:
+    description: 'Fail build on: error, warning, info, never (default: error)'
+    required: false
+    default: 'error'
+
+  recursive:
+    description: 'Recursively scan subdirectories (default: false)'
+    required: false
+    default: 'false'
+
+  profile:
+    description: 'Rule profile: strict, balanced, relaxed (default: balanced)'
+    required: false
+    default: 'balanced'
+
+  format:
+    description: 'Output format: console, json, github, sarif (default: github)'
+    required: false
+    default: 'github'
+
+outputs:
+  issues-found:
+    description: 'Total number of issues found'
+    value: ${{ steps.lint.outputs.issues }}
+
+  errors:
+    description: 'Number of errors found'
+    value: ${{ steps.lint.outputs.errors }}
+
+  warnings:
+    description: 'Number of warnings found'
+    value: ${{ steps.lint.outputs.warnings }}
+
+  score:
+    description: 'Stack health score (0-100)'
+    value: ${{ steps.lint.outputs.score }}
+
+  grade:
+    description: 'Stack health grade (A+ to F)'
+    value: ${{ steps.lint.outputs.grade }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install ComposeArr
+      shell: bash
+      run: |
+        echo "::group::Installing ComposeArr"
+        pip install --quiet --upgrade pip
+        pip install --quiet composearr
+        echo "::endgroup::"
+
+    - name: Run ComposeArr Lint
+      id: lint
+      shell: bash
+      run: |
+        set +e  # Don't exit on error yet
+
+        # Build command
+        CMD="composearr audit ${{ inputs.path }}"
+        CMD="$CMD --severity ${{ inputs.severity }}"
+        CMD="$CMD --format ${{ inputs.format }}"
+        CMD="$CMD --profile ${{ inputs.profile }}"
+
+        if [ "${{ inputs.recursive }}" = "true" ]; then
+          CMD="$CMD --recursive"
+        fi
+
+        echo "::group::Running ComposeArr"
+        echo "Command: $CMD"
+        echo ""
+
+        # Run and capture output
+        $CMD 2>&1 | tee composearr-output.txt
+        EXIT_CODE=${PIPESTATUS[0]}
+
+        echo "::endgroup::"
+
+        # Extract metrics from output
+        ISSUES=$(grep -oP 'Issues Found: \K\d+' composearr-output.txt || echo "0")
+        ERRORS=$(grep -oP 'Errors: \K\d+' composearr-output.txt || echo "0")
+        WARNINGS=$(grep -oP 'Warnings: \K\d+' composearr-output.txt || echo "0")
+        SCORE=$(grep -oP 'Score: \K\d+' composearr-output.txt || echo "0")
+        GRADE=$(grep -oP 'Grade: \K[A-F][+-]?' composearr-output.txt || echo "F")
+
+        # Set outputs
+        echo "issues=$ISSUES" >> $GITHUB_OUTPUT
+        echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+        echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+        echo "score=$SCORE" >> $GITHUB_OUTPUT
+        echo "grade=$GRADE" >> $GITHUB_OUTPUT
+
+        # Summary
+        echo "### ComposeArr Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Score:** $SCORE/100" >> $GITHUB_STEP_SUMMARY
+        echo "- **Grade:** $GRADE" >> $GITHUB_STEP_SUMMARY
+        echo "- **Issues:** $ISSUES (Errors: $ERRORS, Warnings: $WARNINGS)" >> $GITHUB_STEP_SUMMARY
+
+        # Determine if we should fail based on fail-on setting
+        FAIL_ON="${{ inputs.fail-on }}"
+
+        if [ "$FAIL_ON" = "never" ]; then
+          echo "::notice::ComposeArr found $ISSUES issue(s) but fail-on=never"
+          exit 0
+        fi
+
+        SHOULD_FAIL=0
+
+        if [ "$FAIL_ON" = "error" ] && [ "$ERRORS" -gt 0 ]; then
+          echo "::error::ComposeArr found $ERRORS error(s)"
+          SHOULD_FAIL=1
+        elif [ "$FAIL_ON" = "warning" ] && [ "$WARNINGS" -gt 0 ]; then
+          echo "::error::ComposeArr found $WARNINGS warning(s)"
+          SHOULD_FAIL=1
+        elif [ "$FAIL_ON" = "info" ] && [ "$ISSUES" -gt 0 ]; then
+          echo "::error::ComposeArr found $ISSUES issue(s)"
+          SHOULD_FAIL=1
+        fi
+
+        if [ "$SHOULD_FAIL" -eq 1 ]; then
+          exit 1
+        fi
+
+        echo "::notice::ComposeArr check passed (Score: $SCORE, Grade: $GRADE)"
+        exit 0

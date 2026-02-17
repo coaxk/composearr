@@ -1,0 +1,63 @@
+name: Lint Compose Files
+
+on:
+  pull_request:
+    paths:
+      - '**.yaml'
+      - '**.yml'
+      - '!.github/**'
+  push:
+    branches: [main, develop]
+    paths:
+      - '**.yaml'
+      - '**.yml'
+
+jobs:
+  lint:
+    name: ComposeArr Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lint compose files
+        id: composearr
+        uses: composearr/composearr@v1
+        with:
+          path: '.'
+          severity: 'warning'
+          fail-on: 'error'
+          recursive: true
+          profile: 'balanced'
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const score = '${{ steps.composearr.outputs.score }}';
+            const grade = '${{ steps.composearr.outputs.grade }}';
+            const issues = '${{ steps.composearr.outputs.issues-found }}';
+            const errors = '${{ steps.composearr.outputs.errors }}';
+            const warnings = '${{ steps.composearr.outputs.warnings }}';
+
+            const emoji = grade.startsWith('A') ? '🎉' :
+                         grade.startsWith('B') ? '👍' :
+                         grade.startsWith('C') ? '⚠️' : '❌';
+
+            const body = `## ${emoji} ComposeArr Results
+
+            - **Score:** ${score}/100
+            - **Grade:** ${grade}
+            - **Issues:** ${issues}
+              - 🔴 Errors: ${errors}
+              - 🟡 Warnings: ${warnings}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
