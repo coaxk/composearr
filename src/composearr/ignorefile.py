@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import fnmatch
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+# Safety limits to prevent ReDoS attacks from crafted patterns
+_MAX_REGEX_LENGTH = 200
+_MAX_WILDCARDS = 10
 
 
 class IgnoreFileParser:
@@ -83,6 +90,15 @@ class IgnoreFileParser:
 
         # Convert ** patterns to regex-compatible form
         if "**" in pattern:
+            # Reject patterns with too many wildcards (ReDoS protection)
+            wildcard_count = pattern.count("*") + pattern.count("?")
+            if wildcard_count > _MAX_WILDCARDS:
+                logger.warning(
+                    "Ignore pattern rejected: too many wildcards (%d > %d): %s",
+                    wildcard_count, _MAX_WILDCARDS, pattern,
+                )
+                return False
+
             # First convert glob ? and * (single) to placeholders
             # so they don't collide with regex syntax
             work = pattern.replace("?", "\x00QUESTION\x00")
@@ -105,6 +121,15 @@ class IgnoreFileParser:
             else:
                 regex_pattern = "(^|.*/)" + regex_pattern
             regex_pattern += "$"
+
+            # Reject overly complex regex patterns (ReDoS protection)
+            if len(regex_pattern) > _MAX_REGEX_LENGTH:
+                logger.warning(
+                    "Ignore pattern rejected: generated regex too long (%d > %d): %s",
+                    len(regex_pattern), _MAX_REGEX_LENGTH, pattern,
+                )
+                return False
+
             try:
                 return bool(re.match(regex_pattern, path))
             except re.error:

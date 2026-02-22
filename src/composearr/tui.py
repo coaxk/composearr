@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -2375,6 +2376,9 @@ def _tui_extract_secrets(console: Console, session: dict) -> None:
                     env_lines.append("# Managed by ComposeArr")
                     env_lines.append("")
                 for var_name, value in app_new_entries:
+                    if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', var_name):
+                        console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]Skipping invalid env var name: {var_name!r}[/]")
+                        continue
                     env_lines.append(f"{var_name}={value}")
                 env_lines.append("")
 
@@ -2415,6 +2419,9 @@ def _tui_extract_secrets(console: Console, session: dict) -> None:
         for source_file in sorted(by_source.keys()):
             env_lines.append(f"# From {source_file}")
             for var_name, value in by_source[source_file]:
+                if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', var_name):
+                    console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]Skipping invalid env var name: {var_name!r}[/]")
+                    continue
                 env_lines.append(f"{var_name}={value}")
             env_lines.append("")
 
@@ -2833,6 +2840,11 @@ def _tui_add_env_variable(console: Console, session: dict) -> None:
             message=f"Value for {var_name}:",
             validate=lambda v: bool(v.strip()) or "Value cannot be empty",
         ).execute()
+
+        # Validate env var name before writing
+        if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', var_name):
+            console.print(f"  [{C_ERR}]\u2716[/] [{C_TEXT}]Invalid env var name: {var_name!r} — must be alphanumeric/underscore[/]")
+            continue
 
         # Append to .env file
         try:

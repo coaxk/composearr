@@ -99,12 +99,15 @@ class TestSecretMasking:
     def test_short_value(self):
         result = mask_secret("abc123")
         assert "*" in result
-        assert "a" not in result  # Fully masked
+        # With default show_chars=2, a 6-char value shows first 2 + last 2
+        assert result.startswith("ab")
+        assert result.endswith("23")
 
     def test_long_value(self):
         result = mask_secret("SuperSecretPassword123")
-        assert result.startswith("Supe")
-        assert result.endswith("d123")
+        # Default show_chars=2: first 2 + masked middle + last 2
+        assert result.startswith("Su")
+        assert result.endswith("23")
         assert "*" in result
 
     def test_custom_show_chars(self):

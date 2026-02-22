@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def mask_secret(value: str, show_chars: int = 4) -> str:
+def mask_secret(value: str, show_chars: int = 2) -> str:
     """Mask a secret value for safe display.
 
     Shows first N and last N characters with asterisks in between.

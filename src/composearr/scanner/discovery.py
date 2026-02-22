@@ -391,9 +391,8 @@ def discover_compose_files(
             # Skip symlinks that point outside the root
             try:
                 resolved = path.resolve()
-                if not str(resolved).startswith(str(root)):
-                    continue
-            except (OSError, RuntimeError):
+                resolved.relative_to(root)
+            except (OSError, RuntimeError, ValueError):
                 continue
 
             # Apply .composearrignore patterns
