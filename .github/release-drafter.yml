@@ -1,0 +1,62 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+categories:
+  - title: 'Security'
+    labels:
+      - 'security'
+  - title: 'New Features'
+    labels:
+      - 'enhancement'
+  - title: 'Bug Fixes'
+    labels:
+      - 'bug'
+  - title: 'New Rules'
+    labels:
+      - 'rules'
+  - title: 'Infrastructure'
+    labels:
+      - 'infrastructure'
+      - 'dependencies'
+  - title: 'Documentation'
+    labels:
+      - 'documentation'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+exclude-labels:
+  - 'skip-changelog'
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+      - 'enhancement'
+  patch:
+    labels:
+      - 'patch'
+      - 'bug'
+  default: patch
+
+autolabeler:
+  - label: 'documentation'
+    files:
+      - '*.md'
+      - 'docs/**'
+  - label: 'rules'
+    files:
+      - 'src/composearr/rules/**'
+  - label: 'infrastructure'
+    files:
+      - '.github/**'
+      - 'pyproject.toml'
