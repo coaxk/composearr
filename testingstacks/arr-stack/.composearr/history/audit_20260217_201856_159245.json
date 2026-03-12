@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-02-17T20:18:56.159220",
+  "stack_path": "C:\\Projects\\composearr\\testingstacks\\arr-stack",
+  "files_scanned": 7,
+  "services_scanned": 7,
+  "errors": 4,
+  "warnings": 38,
+  "infos": 31,
+  "total_issues": 73,
+  "fixable_issues": 42,
+  "score": 63,
+  "grade": "D",
+  "security_score": 53,
+  "reliability_score": 29,
+  "consistency_score": 95,
+  "network_score": 100,
+  "top_rules": [
+    [
+      "CA701",
+      10
+    ],
+    [
+      "CA201",
+      7
+    ],
+    [
+      "CA501",
+      7
+    ],
+    [
+      "CA502",
+      7
+    ],
+    [
+      "CA504",
+      7
+    ]
+  ],
+  "duration_seconds": 1.4474512999295257
+}

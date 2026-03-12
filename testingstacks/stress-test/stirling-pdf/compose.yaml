@@ -1,0 +1,13 @@
+services:
+  stirling-pdf:
+    image: frooodle/s-pdf:latest
+    container_name: stirling-pdf
+    restart: unless-stopped
+    ports:
+      - "8096:8080"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ./config:/config

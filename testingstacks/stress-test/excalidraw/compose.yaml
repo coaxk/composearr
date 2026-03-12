@@ -1,0 +1,14 @@
+services:
+  excalidraw:
+    image: excalidraw/excalidraw:latest
+    container_name: excalidraw
+    ports:
+      - "3002:80"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+      SECRET_KEY: supersecretexcalidrawkey1234567890
+      DB_PASSWORD: dbpass_excalidraw_xYz!987
+    volumes:
+      - ./config:/config

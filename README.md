@@ -328,6 +328,21 @@ Unlike single-file linters, ComposeArr scans your **entire stack directory** and
 
 ---
 
+## Security
+
+ComposeArr parses untrusted YAML files from arbitrary directories, so it validates inputs before processing.
+
+- **File size and depth limits** — Files over 10 MB, YAML over 10,000 lines, and scan depths beyond 10 levels are rejected. Maximum 500 compose files per scan.
+- **YAML alias bomb detection** — Files with more than 100 YAML aliases/merge keys (`*` / `<<:`) are blocked before parsing, preventing exponential expansion attacks.
+- **ReDoS prevention** — Ignore-file patterns are capped at 200 characters and 10 wildcards. Overly complex regex patterns are rejected before compilation.
+- **Path boundary enforcement** — All discovered file paths are resolved via `Path.resolve()` and checked with `relative_to()` to prevent symlink escapes. Paths outside the scan root are excluded.
+- **Secret masking** — When inline secrets are detected (CA101), output masks the value (e.g., `pa**rd`). Full secret values are never printed to console, logs, or SARIF/JSON output.
+- **Inline secret detection** — Uses both pattern matching (password, token, api_key, etc.) and Shannon entropy analysis. Filters out safe values (booleans, localhost, placeholders like `changeme`) to minimize false positives.
+- **Binary file detection** — Files containing null bytes are identified as binary and skipped before YAML parsing.
+- **Safe YAML loading** — All parsing uses safe loaders. No arbitrary object deserialization.
+
+---
+
 ## Output Example
 
 ```

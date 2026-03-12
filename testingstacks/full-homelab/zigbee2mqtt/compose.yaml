@@ -1,0 +1,15 @@
+services:
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt
+    container_name: zigbee2mqtt
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      TZ: America/Chicago
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    depends_on:
+      - mosquitto

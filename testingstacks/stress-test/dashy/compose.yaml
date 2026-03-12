@@ -1,0 +1,11 @@
+services:
+  dashy:
+    image: lissy93/dashy:latest
+    container_name: dashy
+    ports:
+      - "4000:8080"
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config:/config

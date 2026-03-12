@@ -1,0 +1,11 @@
+services:
+  diun:
+    image: crazymax/diun:latest
+    container_name: diun
+    restart: unless-stopped
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ./config:/config

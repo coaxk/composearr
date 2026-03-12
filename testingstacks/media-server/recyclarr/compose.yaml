@@ -1,0 +1,11 @@
+services:
+  recyclarr:
+    image: ghcr.io/recyclarr/recyclarr
+    container_name: recyclarr
+    restart: unless-stopped
+    volumes:
+      - ./config:/config
+    environment:
+      TZ: America/New_York
+      CRON_SCHEDULE: "0 */6 * * *"
+      RECYCLARR_CREATE_CONFIG: "true"

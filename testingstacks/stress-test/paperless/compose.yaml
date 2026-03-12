@@ -1,0 +1,15 @@
+services:
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    restart: unless-stopped
+    ports:
+      - "8094:8000"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+      SECRET_KEY: supersecretpaperlesskey1234567890
+      DB_PASSWORD: dbpass_paperless_xYz!987
+    volumes:
+      - ./config:/config

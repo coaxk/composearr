@@ -1,0 +1,12 @@
+services:
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    restart: unless-stopped
+    ports:
+      - "8093:80"
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config:/config

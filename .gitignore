@@ -45,3 +45,13 @@ audit.sarif
 # Temporary work order files
 CC_INSTRUCTIONS.md
 CC_WORK_ORDER.md
+
+# Work orders and feedback (Tenzing artifacts)
+feedback/work orders/
+feedback/*.zip
+
+# Uploads directory
+uploads/
+
+# ANSI artifacts
+*.ansi

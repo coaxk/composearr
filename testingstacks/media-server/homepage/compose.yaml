@@ -1,0 +1,14 @@
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      TZ: America/New_York
+      HOMEPAGE_VAR_PLEX_TOKEN: myplextokensupersecret123456
+      HOMEPAGE_VAR_SONARR_KEY: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4

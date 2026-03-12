@@ -1,0 +1,13 @@
+services:
+  dokuwiki:
+    image: lscr.io/linuxserver/dokuwiki
+    container_name: dokuwiki
+    restart: unless-stopped
+    ports:
+      - "8086:80"
+    environment:
+      - TZ=America/Denver
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config:/config

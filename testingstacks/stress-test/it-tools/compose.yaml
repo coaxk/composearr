@@ -1,0 +1,15 @@
+services:
+  it-tools:
+    image: corentinth/it-tools:latest
+    container_name: it-tools
+    restart: unless-stopped
+    ports:
+      - "8092:80"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+      SECRET_KEY: supersecretit-toolskey1234567890
+      DB_PASSWORD: dbpass_it-tools_xYz!987
+    volumes:
+      - ./config:/config

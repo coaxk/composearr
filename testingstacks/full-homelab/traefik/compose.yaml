@@ -1,0 +1,23 @@
+services:
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - ./config/traefik.yml:/traefik.yml:ro
+      - ./config/acme.json:/acme.json
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      TZ: America/Chicago
+      CF_API_EMAIL: admin@example.com
+      CF_DNS_API_TOKEN: abc123def456ghi789jkl012mno345pqr
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: proxy

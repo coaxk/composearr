@@ -1,0 +1,14 @@
+services:
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+      - "2222:22"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ./config:/config

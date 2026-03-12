@@ -1,0 +1,17 @@
+services:
+  tautulli:
+    image: lscr.io/linuxserver/tautulli
+    container_name: tautulli
+    restart: unless-stopped
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./config:/config
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/New_York
+
+networks:
+  default:
+    name: media-net

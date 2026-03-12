@@ -1,0 +1,14 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ./config:/config

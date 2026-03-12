@@ -1,0 +1,28 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    ports:
+      - "8222:80"
+    volumes:
+      - vw_data:/data
+    environment:
+      ADMIN_TOKEN: $argon2id$v=19$m=65540,t=3,p=4$somerandomsaltvalue$hashedvalue
+      DOMAIN: https://vault.example.com
+      SIGNUPS_ALLOWED: "false"
+      SMTP_HOST: smtp.gmail.com
+      SMTP_FROM: vault@example.com
+      SMTP_PORT: 587
+      SMTP_SECURITY: starttls
+      SMTP_USERNAME: vault@example.com
+      SMTP_PASSWORD: MyGmailAppPassword123!
+    networks:
+      - proxy
+
+volumes:
+  vw_data:
+
+networks:
+  proxy:
+    name: proxy

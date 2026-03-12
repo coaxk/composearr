@@ -1,0 +1,13 @@
+services:
+  blocky:
+    image: spx01/blocky:latest
+    container_name: blocky
+    ports:
+      - "4000:4000"
+      - "53:53/udp"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - ./config:/config

@@ -1,0 +1,20 @@
+services:
+  notifiarr:
+    image: golift/notifiarr:latest
+    container_name: notifiarr
+    restart: unless-stopped
+    ports:
+      - "5454:5454"
+    volumes:
+      - ./config:/config
+    environment:
+      TZ: America/New_York
+      DN_API_KEY: abcdef1234567890abcdef1234567890
+      DN_SONARR_0_URL: http://sonarr:8989
+      DN_SONARR_0_API_KEY: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+      DN_RADARR_0_URL: http://radarr:7878
+      DN_RADARR_0_API_KEY: f9e8d7c6b5a4f9e8d7c6b5a4f9e8d7c6
+
+networks:
+  default:
+    name: media-net

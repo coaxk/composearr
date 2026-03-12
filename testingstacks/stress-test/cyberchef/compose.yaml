@@ -1,0 +1,15 @@
+services:
+  cyberchef:
+    image: ghcr.io/gchq/cyberchef:latest
+    container_name: cyberchef
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=America/Denver
+      - PUID=1000
+      - PGID=1000
+      - SECRET_KEY=supersecretcyberchefkey1234567890
+      - DB_PASSWORD=dbpass_cyberchef_xYz!987
+    volumes:
+      - ./config:/config

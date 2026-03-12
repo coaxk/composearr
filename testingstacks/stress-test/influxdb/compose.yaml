@@ -1,0 +1,11 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config:/config

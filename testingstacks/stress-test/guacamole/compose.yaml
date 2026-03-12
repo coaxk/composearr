@@ -1,0 +1,14 @@
+services:
+  guacamole:
+    image: guacamole/guacamole
+    container_name: guacamole
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - SECRET_KEY=supersecretguacamolekey1234567890
+      - DB_PASSWORD=dbpass_guacamole_xYz!987
+    volumes:
+      - ./config:/config

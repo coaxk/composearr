@@ -77,3 +77,15 @@ pip install -e ".[dev,network]"
 ### Code Style
 - Formatted and linted with Ruff
 - Type hints encouraged but not strictly enforced everywhere
+
+## Session Discipline
+**Before every commit and at end of session**, update knowledge files:
+1. This `CLAUDE.md` — architecture, patterns, gotchas, key functions
+2. Global `MEMORY.md` (at `~/.claude/projects/C--DockerContainers/memory/MEMORY.md`) — cross-project state, user prefs, ecosystem strategy
+Do this proactively. Don't wait to be asked. If you built it, document it.
+
+## Ecosystem Strategy
+Part of a 4-tool ecosystem: MapArr, ComposeArr, SubBrainArr, Apart.
+Shared code extraction planned for Phase 15+ into a `shared/` directory.
+Cross-Claude communication via CLAUDE.md files and comprehensive code comments.
+**Rumplestiltskin** — banked framework concept: extract ethos + methodology into pluggable analysis engine.

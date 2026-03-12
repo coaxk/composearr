@@ -1,0 +1,26 @@
+services:
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+    volumes:
+      - ./config:/config
+    environment:
+      TZ: America/Chicago
+      AUTHELIA_JWT_SECRET: a-very-long-secret-jwt-key-for-authelia-1234567890
+      AUTHELIA_SESSION_SECRET: another-secret-session-key-0987654321
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: yet-another-encryption-key-abcdef
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - proxy
+      - db
+
+networks:
+  proxy:
+    name: proxy
+  db:
+    name: database

@@ -1,0 +1,22 @@
+services:
+  transmission:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: transmission
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+      - "51413:51413"
+      - "51413:51413/udp"
+    volumes:
+      - ./config:/config
+      - /data/torrents:/data/torrents
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/New_York
+      USER: admin
+      PASS: MySecretPassword123!
+
+networks:
+  default:
+    name: media-net

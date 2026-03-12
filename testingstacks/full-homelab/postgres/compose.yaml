@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: homelab
+      POSTGRES_PASSWORD: SuperSecretDBPassword123!
+      POSTGRES_DB: homelab
+      TZ: America/Chicago
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U homelab"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db
+
+volumes:
+  postgres_data:
+
+networks:
+  db:
+    name: database

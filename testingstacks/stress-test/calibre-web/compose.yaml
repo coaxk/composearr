@@ -1,0 +1,15 @@
+services:
+  calibre-web:
+    image: lscr.io/linuxserver/calibre-web:latest
+    container_name: calibre-web
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      TZ: America/Denver
+      PUID: 1000
+      PGID: 1000
+      SECRET_KEY: supersecretcalibre-webkey1234567890
+      DB_PASSWORD: dbpass_calibre-web_xYz!987
+    volumes:
+      - ./config:/config

@@ -1,0 +1,14 @@
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: adguard
+    ports:
+      - "3000:3000"
+      - "80:80"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - SECRET_KEY=supersecretadguardkey1234567890
+      - DB_PASSWORD=dbpass_adguard_xYz!987
+    volumes:
+      - ./config:/config

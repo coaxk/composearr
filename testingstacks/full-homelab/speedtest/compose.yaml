@@ -1,0 +1,8 @@
+services:
+  speedtest:
+    image: lscr.io/linuxserver/librespeed
+    container_name: speedtest
+    ports:
+      - "8085:80"
+    environment:
+      - PASSWORD=SpeedTestAdmin123

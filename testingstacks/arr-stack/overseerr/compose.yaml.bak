@@ -1,0 +1,16 @@
+services:
+  overseerr:
+    image: sctx/overseerr
+    container_name: overseerr
+    restart: unless-stopped
+    ports:
+      - "5055:5055"
+    volumes:
+      - ./config:/app/config
+    environment:
+      TZ: America/New_York
+      API_KEY: supersecretapikey12345
+
+networks:
+  default:
+    name: arr-net

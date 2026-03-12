@@ -1,0 +1,12 @@
+services:
+  ghost:
+    image: ghost:5
+    container_name: ghost
+    ports:
+      - "2368:2368"
+    environment:
+      - TZ=America/Denver
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config:/config

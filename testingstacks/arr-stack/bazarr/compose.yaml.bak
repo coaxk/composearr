@@ -1,0 +1,18 @@
+services:
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    restart: unless-stopped
+    ports:
+      - "6767:6767"
+    volumes:
+      - ./config:/config
+      - /data/media:/data/media
+    environment:
+      PUID: 1000
+      PGID: 1000
+      # Missing TZ!
+
+networks:
+  default:
+    name: arr-net

@@ -1,0 +1,17 @@
+services:
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:develop
+    container_name: prowlarr
+    ports:
+      - "9696:9696"
+    volumes:
+      - ./config:/config
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/New_York
+      PROWLARR__AUTH__APIKEY: 12345678901234567890123456789012
+
+networks:
+  default:
+    name: arr-net

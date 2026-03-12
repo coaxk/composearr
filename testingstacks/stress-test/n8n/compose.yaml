@@ -1,0 +1,14 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - TZ=America/Denver
+      - PUID=1000
+      - PGID=1000
+      - SECRET_KEY=supersecretn8nkey1234567890
+      - DB_PASSWORD=dbpass_n8n_xYz!987
+    volumes:
+      - ./config:/config

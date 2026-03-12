@@ -1,0 +1,59 @@
+mindshare - it just felt the ground shake underneath me when I read that....
+
+stackscore!!!!!!!!!! - wow, I just realised I'm that score junkie you just described. example: bufferbloat - I couldn't count the hours I've spent playing around, testing, working with gemini etc etc to attain an A+ score at https://www.waveform.com/tools/bufferbloat  ..and I did FLEXXXXXXXXXXXXXXXX
+
+Watch mode: I'm so glad and happy with myself I asked you for the Everest pitch. watch mode is must have. I hadn't even considered it as yet. running in a tmux I totally get - proably more of a neckbear approach which is fine by me but to really gain traction with the users at levels below that I'm thinking delivering the product in a docker image that they would leave running is what seals the deal there.
+
+Image freshness advisor - Must have - I feel like this is not a big hill to climb from where we are currently? am I wrong?
+
+Runtime comparison: excellent. standalone available feature and also  integrate into the fix process we already have? as in users runs our fix approach, before commitment the comparison tool says hey check this out before you apply maybe?
+
+Diff between audits - yes I had been thinking of the same thing - view their history and performance progress, perhaps ties into their stackscore (TM)  8+)
+
+Plugins - ABSOLUTELY, further down the line though as userbase solidifies and we want to add some nitrous oxide into our chambers to really blast.
+
+Scaffold..arr - see what I did there? bro, seriously..brilliant. not a pun but we already halve the scaffolding for this now practically...a big yes from me.
+
+Remote hosts scan - absolutely this is something I had considered. think I even asked you about it now long ago in this chat? another must have. most of our mid to higher tier users most certainly have multiple hosts and are running portainer/Komodo like situations with remote agents and almost certainly socketproxy. I am also an example of this (although I have spent the last few weeks bringing my host count down from 4 to one beast).
+
+Interactive diff preview - another must have. similar to the runtime comparison being implemented in the way I suggest? are they two separate things? 
+
+
+health report - nice. your use cases but also think a prettified output that joe 9-5 tech guy can dump on his CTO's desk regularly or upon request. this is where your history suggestion owns the game us well. in those reports the ongoing improvements and stackscore (TN) metrics are visualised.... GitHub issues supporting evidence is seriously the move as well. making lives a lot easier.
+
+compose from running containers - Komodo does this nicely at the moment, I myself have found it incredibly useful especially in dire time when something went wrong. just last night for example when I was working with web claude on my own stack hygiene, something screwed up and my sabnzbd dir ended up having a subgen yaml in it? (who knows how?). enter this function in Komodo - Komodo was showing the subgen yaml as loaded and I sted to lose my shit like wtf is going on here, I drop into the image's info tab, there displayed is the loaded yaml and below that the deployed config. loaded is subgen, deployed is sabnzbd. copy/paste/rebuild, done. life is good again. another very very smart thought through addition we certainly should have. very much fits into our project as this app is purely all about yamls.
+
+multi stack dash - 100% and fits right in with the remote host functionaility already decided upon.
+
+rules - yes absolutely, need comprehensive. already covered in the forward plan maintained with web claude.
+
+read only systems - tell me more
+
+resource limits!!!!!!!!!!!!!!!!! wtf he did I forget this. this now has to be number one priority. my doing a hygiene project on my stack what spawned this whole idea and it was PURELY because of resource limits (I had them applied here and there only. web claude and I built this already for me. looks at stacks, find what there or not refereces sources for thos apps, interacts with user allowing them to fine tune for their custom use cases before deply etc. this is actually the true 100% seed of composearr. cant below I missed it! need to resolve this as first priority.
+
+Logging driver/rotate - also was the spawn - I covered this with web clause when deployed the solution for me personally. also top priotiy.
+
+named volumes - 1000%
+
+Dupe variables - big time yes. we should bump to the top of the list.
+
+Network mode conflicts: we aalready identify this but then pretty much drop the baby there currently right? need to pick that baby up and deliver it safely
+
+Capability dropping - docker hardened image related that I mentioned earlier or something else? maybe we also can educate re security risks as part of our scans output (and solve if relevant/possible?)?
+
+DNs - combine into network mode area or separate beast?
+
+The Orphanage (TM) - another big big yes. another one how I didn't think of this. we should be able to get this done fairly easily right? I think we should do but instill discipline in ourself so as we don't try and become portainer. identify and guide but don't implant big prune buttons evgerywhere. stay out of that sandbox.
+
+error messages - yes now we have the methodology we should stick to it. I think we will jump on the opportunities for them as we see them, correct as they appear if we missed them using our established approach.
+
+DCOS - without question.
+
+Take my feedback here and merge with your prioitsation. Then can you output a brief of these new tasks for me so I can give to web claude to update the overall project plan?
+
+quick thought re how we handle image tags: we scan and say you should be on this tag for this app right? an all too real scenario is this - some users (me included) love being on latest, others users are on dev because they are working or need special feature, other users must stick to specific version or older specific version because of dependencies etc blah blah, some pain in the arse developers insist on their own version of image tag that only makes sense to them. if we just say don't use latest and you should pin to this version number for your app, we cut off at the legs a large number of our potential users. thoughts?
+
+
+From this moment forth I shall call you Tenzing Norgay. Namaste.
+
+

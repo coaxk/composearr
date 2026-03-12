@@ -1,0 +1,13 @@
+services:
+  olivetin:
+    image: jamesread/olivetin:latest
+    container_name: olivetin
+    restart: unless-stopped
+    ports:
+      - "1337:1337"
+    environment:
+      - TZ=America/Denver
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./config:/config
